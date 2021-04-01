@@ -3,7 +3,11 @@
 
 int main(){
     int socket_fd = client_init();
-    send_msg("test", socket_fd);
+    int ret = send_msg("test", socket_fd);
+
+    char* msg;
+    dequeue(msg);
+    printf("%s\n", msg);
 
     return 0;
 }
