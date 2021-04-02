@@ -8,6 +8,7 @@ int main(){
     if(socket_fd >= 0){
         msg sent_msg = {.msg = "test", .msg_type = CHAT};
         int ret = send_msg(sent_msg, socket_fd);
+        printf("%d, %d\n", socket_fd, ret); // debug
         enqueue_msg(socket_fd);
         msg recv_msg = dequeue_msg();
 
