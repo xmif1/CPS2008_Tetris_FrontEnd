@@ -6,11 +6,12 @@ int main(){
     int socket_fd = client_init();
 
     if(socket_fd >= 0){
-       int ret = send_msg("test", socket_fd);
-       enqueue_msgs(socket_fd);
-       char* msg = dequeue_msgs();
+        msg sent_msg = {.msg = "test", .msg_type = CHAT};
+        int ret = send_msg(sent_msg, socket_fd);
+        enqueue_msg(socket_fd);
+        msg recv_msg = dequeue_msg();
 
-       printf("%s\n", msg);
+        printf("%s\n", recv_msg.msg);
     }
 
   return 0;
