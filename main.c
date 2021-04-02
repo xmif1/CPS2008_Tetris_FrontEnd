@@ -7,7 +7,6 @@ int main(){
 
     char* msg;
     dequeue(msg);
-    printf("%s\n", msg);
 
     return 0;
 }
