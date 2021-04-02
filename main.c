@@ -26,7 +26,6 @@ int main(){
         // setting up ncurses
         int max_y, max_x;
         initscr();
-        noecho();
 
         // defining windows and their properties
         getmaxyx(stdscr, max_y, max_x);
@@ -35,8 +34,7 @@ int main(){
         chat_box = newwin(5, max_x, max_y - 5, 0);
 
         // printing titles and border
-        mvwprintw(live_chat, 0, 0, "Super Battle Tetris Chat Server");
-        mvwprintw(chat_box, 0, 0, "Type here: ");
+        mvwprintw(live_chat, 0, 0, "Super Battle Tetris Chat Server\n");
 
         for(int i = 0; i < max_x; i++){
             mvwprintw(chat_box, 0, i, "=");
@@ -46,12 +44,12 @@ int main(){
         wrefresh(live_chat);
         wrefresh(chat_box);
 
-        if(pthread_create(live_chat_thread, NULL, get_chat_msgs, (void*) NULL) != 0){
+        if(pthread_create(&live_chat_thread, NULL, get_chat_msgs, (void*) NULL) != 0){
             perror("Error while creating thread to service incoming chat messages");
             return 1;
         }
 
-        if(pthread_create(sent_chat_thread, NULL, send_chat_msgs, (void*) socket_fd) != 0){
+        if(pthread_create(&sent_chat_thread, NULL, send_chat_msgs, (void*) &socket_fd) != 0){
             perror("Error while creating thread to service outgoing chat messages");
             return 1;
         }
@@ -71,13 +69,20 @@ int main(){
 void* get_chat_msgs(void* arg){
     while(connection_open){
         msg recv_msg;
-        recv_msg = dequeue_msg();
-        waddstr(live_chat, recv_msg.msg);
+        recv_msg = dequeue_chat_msg();
+
+        char to_print[MSG_SIZE+1];
+        strcpy(to_print, "\n");
+        strcat(to_print, recv_msg.msg);
+
+        waddstr(live_chat, to_print);
         wrefresh(live_chat);
     }
 }
 
 void* send_chat_msgs(void* arg){
+    int socket_fd = *((int*) arg);
+
     while(connection_open){
         msg to_send;
         to_send.msg_type = CHAT;
@@ -87,5 +92,9 @@ void* send_chat_msgs(void* arg){
             perror("Error communicating with game server");
             break;
         }
+
+        wmove(chat_box, 1, 0);
+        wclrtobot(chat_box);
+        wrefresh(chat_box);
     }
 }
