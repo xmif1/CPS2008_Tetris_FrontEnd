@@ -8,7 +8,7 @@
 WINDOW* live_chat;
 WINDOW* chat_box;
 int connection_open = 0;
-pthread_mutex_t threadMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t connectionMutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_t live_chat_thread;
 pthread_t sent_chat_thread;
@@ -111,9 +111,9 @@ void* send_chat_msgs(void* arg){
         if(send_msg(to_send, socket_fd) < 0){
             smrerror("Error communicating with game server");
 
-            pthread_mutex_lock(&threadMutex);
+            pthread_mutex_lock(&connectionMutex);
             connection_open = 0;
-            pthread_mutex_unlock(&threadMutex);
+            pthread_mutex_unlock(&connectionMutex);
         }
 
         wmove(chat_box, 1, 0);
