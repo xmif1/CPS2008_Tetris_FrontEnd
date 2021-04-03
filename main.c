@@ -59,7 +59,12 @@ int main(){
         }
 
         while(connection_open){
-            enqueue_msg(socket_fd);
+            if(enqueue_msg(socket_fd) <= 0){
+		pthread_mutex_lock(&connectionMutex);
+		connection_open = 0;
+		server_err = 1;
+		pthread_mutex_unlock(&connectionMutex);
+	    }
         }
 
         // when connection closes, proceed to cleanup and close everything gracefully
@@ -89,6 +94,7 @@ int main(){
 }
 
 void* get_chat_msgs(void* arg){
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     while(connection_open){
         msg recv_msg;
         recv_msg = dequeue_chat_msg();
@@ -131,4 +137,5 @@ void curses_cleanup(){
     delwin(live_chat);
     delwin(chat_box);
     endwin();
+    fflush(stdout);
 }
