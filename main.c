@@ -108,6 +108,8 @@ void* get_chat_msgs(void* arg){
         wrefresh(live_chat);
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
+
+    pthread_exit(NULL);
 }
 
 void* send_chat_msgs(void* arg){
@@ -131,6 +133,8 @@ void* send_chat_msgs(void* arg){
         wrefresh(chat_box);
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
+
+    pthread_exit(NULL);
 }
 
 void curses_cleanup(){
