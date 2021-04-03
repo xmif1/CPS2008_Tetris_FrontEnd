@@ -8,7 +8,8 @@
 WINDOW* live_chat;
 WINDOW* chat_box;
 int connection_open = 0;
-pthread_mutex_t threadMutex = PTHREAD_MUTEX_INITIALIZER;
+int server_err = 0;
+pthread_mutex_t connectionMutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_t live_chat_thread;
 pthread_t sent_chat_thread;
@@ -17,6 +18,7 @@ pthread_t sent_chat_thread;
 
 void* get_chat_msgs(void* arg);
 void* send_chat_msgs(void* arg);
+void curses_cleanup();
 
 int main(){
     int socket_fd = client_init();
@@ -47,12 +49,12 @@ int main(){
 
         // create threads for sending and receiving chat messages while connection is open
         if(pthread_create(&live_chat_thread, NULL, get_chat_msgs, (void*) NULL) != 0){
-            endwin();
+            curses_cleanup();
             mrerror("Error while creating thread to service incoming chat messages");
         }
 
         if(pthread_create(&sent_chat_thread, NULL, send_chat_msgs, (void*) &socket_fd) != 0){
-            endwin();
+            curses_cleanup();
             mrerror("Error while creating thread to service outgoing chat messages");
         }
 
@@ -65,16 +67,19 @@ int main(){
         pthread_cancel(sent_chat_thread);
 
         if(pthread_join(live_chat_thread, NULL) != 0){
-            endwin();
+            curses_cleanup();
             mrerror("Error while terminating chat services.");
         }
 
         if(pthread_join(sent_chat_thread, NULL) != 0){
-            endwin();
+            curses_cleanup();
             mrerror("Error while terminating chat services.");
         }
 
-        endwin();
+        curses_cleanup();
+        if(server_err){
+            mrerror("Server disconnected abruptly.");
+        }
     }
     else{
         mrerror("Cannot establish connection to game server");
@@ -109,11 +114,10 @@ void* send_chat_msgs(void* arg){
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         if(send_msg(to_send, socket_fd) < 0){
-            smrerror("Error communicating with game server");
-
-            pthread_mutex_lock(&threadMutex);
+            pthread_mutex_lock(&connectionMutex);
             connection_open = 0;
-            pthread_mutex_unlock(&threadMutex);
+            server_err = 1;
+            pthread_mutex_unlock(&connectionMutex);
         }
 
         wmove(chat_box, 1, 0);
@@ -121,4 +125,10 @@ void* send_chat_msgs(void* arg){
         wrefresh(chat_box);
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
+}
+
+void curses_cleanup(){
+    delwin(live_chat);
+    delwin(chat_box);
+    endwin();
 }
