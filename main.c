@@ -60,11 +60,11 @@ int main(){
 
         while(connection_open){
             if(enqueue_msg(socket_fd) <= 0){
-		        pthread_mutex_lock(&connectionMutex);
-		        connection_open = 0;
-		        server_err = 1;
-		        pthread_mutex_unlock(&connectionMutex);
-	        }
+		 pthread_mutex_lock(&connectionMutex);
+		 connection_open = 0;
+		 server_err = 1;
+		 pthread_mutex_unlock(&connectionMutex);
+	    }
         }
 
         // when connection closes, proceed to cleanup and close everything gracefully
