@@ -118,7 +118,9 @@ void* send_chat_msgs(void* arg){
     while(connection_open){
         msg to_send;
         to_send.msg_type = CHAT;
-        wgetstr(chat_box, to_send.msg);
+        // wgetstr(chat_box, to_send.msg);
+        usleep(1000);
+        strcpy(to_send.msg, "!players");
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         if(send_msg(to_send, socket_fd) < 0){
@@ -130,7 +132,7 @@ void* send_chat_msgs(void* arg){
 
         wmove(chat_box, 1, 0);
         wclrtobot(chat_box);
-        wrefresh(chat_box);
+        wnoutrefresh(chat_box);
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
 
