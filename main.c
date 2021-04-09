@@ -118,9 +118,7 @@ void* send_chat_msgs(void* arg){
     while(connection_open){
         msg to_send;
         to_send.msg_type = CHAT;
-        // wgetstr(chat_box, to_send.msg);
-        usleep(1000);
-        strcpy(to_send.msg, "!players");
+        wgetstr(chat_box, to_send.msg);
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         if(send_msg(to_send, socket_fd) < 0){
