@@ -122,15 +122,24 @@ void* send_chat_msgs(void* arg){
         to_send.msg_type = CHAT;
 
         int c; int i = 0;
-        while((c = wgetch(chat_box)) != '\n' && c != EOF){
-            to_send.msg[i] = (char) c;
-            i++;
+        fflush(stdin);
+        while((c = wgetch(chat_box)) != '\n' && c != EOF && c != '\r'){
+            if((c == KEY_BACKSPACE || c == 127 || c == '\b') && i > 0){
+                i--;
+                to_send.msg[i] = '\0';
+                wdelch(chat_box);
+            }else{
+                to_send.msg[i] = (char) c;
+                i++;
+            }
 
             to_send.msg = realloc(to_send.msg, i+1);
             if(to_send.msg == NULL){
                 mrerror("Error while allocating memory");
             }
         }
+
+        to_send.msg[i] = '\0';
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         if(send_msg(to_send, socket_fd) < 0){
