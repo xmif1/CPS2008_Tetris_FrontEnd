@@ -63,12 +63,14 @@ int main(){
 
         msg recv_server_msg;
         while(connection_open){
-            if((recv_server_msg = enqueue_server_msg(server_fd, recv_server_msg)) != NULL){
+            recv_server_msg = enqueue_server_msg(server_fd);
+
+            if(recv_serv_msg.msg_type == INVALID){
 		        pthread_mutex_lock(&connectionMutex);
 		        connection_open = 0;
 		        server_err = 1;
 		        pthread_mutex_unlock(&connectionMutex);
-	    }else{
+	        }else{
                 switch(recv_server_msg.msg_type){
                     case CHAT: handle_chat_msg(recv_server_msg); break;
                     case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
