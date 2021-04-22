@@ -21,9 +21,9 @@ void* send_chat_msgs(void* arg);
 void curses_cleanup();
 
 int main(){
-    int socket_fd = client_init();
+    client_init();
 
-    if(socket_fd >= 0){
+    if(server_fd >= 0){
         connection_open = 1;
 
         // setting up ncurses
@@ -53,13 +53,13 @@ int main(){
             mrerror("Error while creating thread to service incoming chat messages");
         }
 
-        if(pthread_create(&sent_chat_thread, NULL, send_chat_msgs, (void*) &socket_fd) != 0){
+        if(pthread_create(&sent_chat_thread, NULL, send_chat_msgs, (void*) NULL) != 0){
             curses_cleanup();
             mrerror("Error while creating thread to service outgoing chat messages");
         }
 
         while(connection_open){
-            if(enqueue_msg(socket_fd) <= 0){
+            if(enqueue_server_msg(server_fd) <= 0){
 		        pthread_mutex_lock(&connectionMutex);
 		        connection_open = 0;
 		        server_err = 1;
@@ -113,15 +113,13 @@ void* get_chat_msgs(void* arg){
 }
 
 void* send_chat_msgs(void* arg){
-    int socket_fd = *((int*) arg);
-
     while(connection_open){
         msg to_send;
         to_send.msg_type = CHAT;
         wgetstr(chat_box, to_send.msg);
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-        if(send_msg(to_send, socket_fd) < 0){
+        if(send_msg(to_send, server_fd) < 0){
             pthread_mutex_lock(&connectionMutex);
             connection_open = 0;
             server_err = 1;
