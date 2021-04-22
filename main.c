@@ -100,11 +100,8 @@ void* get_chat_msgs(void* arg){
         recv_msg = dequeue_chat_msg();
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-        char to_print[MSG_SIZE+1];
-        strcpy(to_print, "\n");
-        strcat(to_print, recv_msg.msg);
-
-        waddstr(live_chat, to_print);
+        waddstr(live_chat, recv_msg.msg);
+        waddch(live_chat, '\n');
         wrefresh(live_chat);
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
@@ -115,8 +112,32 @@ void* get_chat_msgs(void* arg){
 void* send_chat_msgs(void* arg){
     while(connection_open){
         msg to_send;
+        to_send.msg = malloc(1);
+        if(to_send.msg == NULL){
+            mrerror("Error while allocating memory");
+        }
+
         to_send.msg_type = CHAT;
-        wgetstr(chat_box, to_send.msg);
+
+        int c; int i = 0;
+        fflush(stdin);
+        while((c = wgetch(chat_box)) != '\n' && c != EOF && c != '\r'){
+            if((c == KEY_BACKSPACE || c == 127 || c == '\b') && i > 0){
+                i--;
+                to_send.msg[i] = '\0';
+                wdelch(chat_box);
+            }else{
+                to_send.msg[i] = (char) c;
+                i++;
+            }
+
+            to_send.msg = realloc(to_send.msg, i+1);
+            if(to_send.msg == NULL){
+                mrerror("Error while allocating memory");
+            }
+        }
+
+        to_send.msg[i] = '\0';
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         if(send_msg(to_send, server_fd) < 0){
@@ -128,7 +149,7 @@ void* send_chat_msgs(void* arg){
 
         wmove(chat_box, 1, 0);
         wclrtobot(chat_box);
-        wrefresh(chat_box);
+        wnoutrefresh(chat_box);
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
 
