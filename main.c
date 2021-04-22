@@ -61,17 +61,17 @@ int main(){
             mrerror("Error while creating thread to service outgoing chat messages");
         }
 
-        msg* recv_server_msg;
+        msg recv_server_msg;
         while(connection_open){
-            if(enqueue_server_msg(server_fd, recv_server_msg) <= 0){
+            if((recv_server_msg = enqueue_server_msg(server_fd, recv_server_msg)) != NULL){
 		        pthread_mutex_lock(&connectionMutex);
 		        connection_open = 0;
 		        server_err = 1;
 		        pthread_mutex_unlock(&connectionMutex);
-	        }else{
-                switch(recv_server_msg->msg_type){
-                    case CHAT: handle_chat_msg(*recv_server_msg); break;
-                    case NEW_GAME: handle_new_game_msg(*recv_server_msg); break;
+	    }else{
+                switch(recv_server_msg.msg_type){
+                    case CHAT: handle_chat_msg(recv_server_msg); break;
+                    case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
                     case START_GAME: start_game(); break;
                 }
             }
@@ -159,25 +159,25 @@ void* send_chat_msgs(void* arg){
 
 void start_game(){
     // create threads for servicing peer-to-peer connections
-    if(pthread_create(&service_p2p_thread, NULL, service_peer_connection, (void*) NULL) != 0){
+    if(pthread_create(&service_p2p_thread, NULL, service_peer_connections, (void*) NULL) != 0){
         curses_cleanup();
         mrerror("Error while creating thread to service and join incoming peer to peer connections messages");
     }
 
     // create threads for accepting peer-to-peer connections
-    if(pthread_create(&accept_p2p_thread, NULL, accept_peer_connection, (void*) NULL) != 0){
+    if(pthread_create(&accept_p2p_thread, NULL, accept_peer_connections, (void*) NULL) != 0){
         curses_cleanup();
         mrerror("Error while creating thread to accept incoming peer to peer connections messages");
     }
 
-    pthread_join(accept_p2p_thread);
+    pthread_join(accept_p2p_thread, NULL);
 
     // temporary
     msg to_send;
     to_send.msg_type = CHAT;
     to_send.msg = malloc(64);
     strcpy(to_send.msg, "P2P Setup!");
-    send_msg(to_send, server_fd)
+    send_msg(to_send, server_fd);
 }
 
 void curses_cleanup(){
