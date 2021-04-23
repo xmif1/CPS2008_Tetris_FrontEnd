@@ -14,6 +14,7 @@ pthread_mutex_t connectionMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_t live_chat_thread;
 pthread_t sent_chat_thread;
 pthread_t accept_p2p_thread;
+pthread_t score_update_thread;
 pthread_t start_game_thread;
 
 // FUNC DEFNS
@@ -181,12 +182,15 @@ void* start_game(void* arg){
 
     service_peer_connections(NULL);
 
-    // temporary
-    msg to_send;
-    to_send.msg_type = CHAT;
-    to_send.msg = malloc(64);
-    strcpy(to_send.msg, "P2P Setup!");
-    send_msg(to_send, server_fd);
+    if(pthread_create(&score_update_thread, NULL, score_update, (void*) NULL) != 0){
+        curses_cleanup();
+        mrerror("Error while creating thread to send score updates to game server");
+    }
+
+    // end of game sessions: cleanup
+    end_game();
+    pthread_cancel(start_game_thread);
+    pthread_mutex_destroy(&gameMutex);
 }
 
 void curses_cleanup(){
