@@ -188,8 +188,14 @@ void* start_game(void* arg){
     }
 
     // end of game sessions: cleanup
+    pthread_cancel(accept_p2p_thread);
+    pthread_join(accept_p2p_thread, NULL);
+
     end_game();
+
     pthread_cancel(start_game_thread);
+    pthread_join(start_game_thread, NULL);
+
     pthread_mutex_destroy(&gameMutex);
 }
 
