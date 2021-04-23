@@ -13,14 +13,14 @@ pthread_mutex_t connectionMutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_t live_chat_thread;
 pthread_t sent_chat_thread;
-pthread_t service_p2p_thread;
 pthread_t accept_p2p_thread;
+pthread_t start_game_thread;
 
 // FUNC DEFNS
 
 void* get_chat_msgs(void* arg);
 void* send_chat_msgs(void* arg);
-void start_game();
+void* start_game(void* arg);
 void curses_cleanup();
 
 int main(){
@@ -65,7 +65,7 @@ int main(){
         while(connection_open){
             recv_server_msg = enqueue_server_msg(server_fd);
 
-            if(recv_serv_msg.msg_type == INVALID){
+            if(recv_server_msg.msg_type == INVALID){
 		        pthread_mutex_lock(&connectionMutex);
 		        connection_open = 0;
 		        server_err = 1;
@@ -74,7 +74,12 @@ int main(){
                 switch(recv_server_msg.msg_type){
                     case CHAT: handle_chat_msg(recv_server_msg); break;
                     case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
-                    case START_GAME: start_game(); break;
+                    case START_GAME: if(pthread_create(&start_game_thread, NULL, start_game, (void*) NULL) != 0){
+                                         curses_cleanup();
+                                         mrerror("Error while creating thread to service new game session");
+                                     }
+
+                                     break;
                 }
             }
         }
@@ -132,15 +137,23 @@ void* send_chat_msgs(void* arg){
         to_send.msg_type = CHAT;
 
         int c; int i = 0;
-        while((c = wgetch(chat_box)) != '\n' && c != EOF){
-            to_send.msg[i] = (char) c;
-            i++;
+        while((c = wgetch(chat_box)) != '\n' && c != EOF && c != '\r'){
+            if((c == KEY_BACKSPACE || c == 127 || c == '\b') && i > 0){
+                i--;
+                to_send.msg[i] = '\0';
+                wdelch(chat_box);
+            }else{
+                to_send.msg[i] = (char) c;
+                i++;
+            }
 
             to_send.msg = realloc(to_send.msg, i+1);
             if(to_send.msg == NULL){
                 mrerror("Error while allocating memory");
             }
         }
+
+        to_send.msg[i] = '\0';
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         if(send_msg(to_send, server_fd) < 0){
@@ -159,20 +172,14 @@ void* send_chat_msgs(void* arg){
     pthread_exit(NULL);
 }
 
-void start_game(){
-    // create threads for servicing peer-to-peer connections
-    if(pthread_create(&service_p2p_thread, NULL, service_peer_connections, (void*) NULL) != 0){
-        curses_cleanup();
-        mrerror("Error while creating thread to service and join incoming peer to peer connections messages");
-    }
-
+void* start_game(void* arg){
     // create threads for accepting peer-to-peer connections
     if(pthread_create(&accept_p2p_thread, NULL, accept_peer_connections, (void*) NULL) != 0){
         curses_cleanup();
         mrerror("Error while creating thread to accept incoming peer to peer connections messages");
     }
 
-    pthread_join(accept_p2p_thread, NULL);
+    service_peer_connections(NULL);
 
     // temporary
     msg to_send;
