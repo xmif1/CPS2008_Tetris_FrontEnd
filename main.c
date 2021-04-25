@@ -26,11 +26,14 @@ void init_colors(void);
 
 // GLOBALS
 
-WINDOW* live_chat;
-WINDOW* chat_box;
+WINDOW* live_chat, chat_box, board, next, hold, score;
+
+int in_game = 0;
 int connection_open = 0;
 int server_err = 0;
+
 pthread_mutex_t serverConnectionMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t screenMutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_t live_chat_thread;
 pthread_t sent_chat_thread;
@@ -111,15 +114,15 @@ int main(){
         pthread_cancel(live_chat_thread);
         pthread_cancel(sent_chat_thread);
 
-	curses_cleanup();
+	    curses_cleanup();
 
         if(server_err){
             smrerror("Server disconnected abruptly.");
         }
 
-	if(signalGameTermination() && pthread_join(start_game_thread, NULL) != 0){
-            mrerror("Error while terminating game session.");
-	}
+        if(signalGameTermination() && pthread_join(start_game_thread, NULL) != 0){
+                mrerror("Error while terminating game session.");
+        }
 
         if(pthread_join(live_chat_thread, NULL) != 0){
             mrerror("Error while terminating chat services.");
@@ -149,7 +152,13 @@ void* get_chat_msgs(void* arg){
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         waddstr(live_chat, recv_msg.msg);
         waddch(live_chat, '\n');
-        wrefresh(live_chat);
+
+        pthread_mutex_lock(&screenMutex);
+        if(!in_game){
+            wrefresh(live_chat);
+        }
+        pthread_mutex_unlock(&screenMutex);
+
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
 
@@ -158,6 +167,15 @@ void* get_chat_msgs(void* arg){
 
 void* send_chat_msgs(void* arg){
     while(connection_open){
+        pthread_mutex_lock(&screenMutex);
+        if(in_game){
+            pthread_mutex_unlock(&screenMutex);
+            sleep(1);
+
+            continue;
+        }
+        pthread_mutex_unlock(&screenMutex);
+
         flushinp();
         msg to_send;
         to_send.msg = malloc(1);
@@ -204,6 +222,13 @@ void* send_chat_msgs(void* arg){
 }
 
 void* start_game(void* arg){
+    pthread_mutex_lock(&screenMutex);
+    in_game = 1;
+    pthread_mutex_unlock(&screenMutex);
+
+    tetris_game *tg;
+    tetris_move move = TM_NONE;
+
     // create threads for accepting peer-to-peer connections
     if(pthread_create(&accept_p2p_thread, NULL, accept_peer_connections, (void*) NULL) != 0){
         curses_cleanup();
@@ -217,14 +242,50 @@ void* start_game(void* arg){
         mrerror("Error while creating thread to send score updates to game server");
     }
 
+    // delwin(chat_box);
 
-    msg debug;
-    debug.msg_type = CHAT;
-    debug.msg = malloc(16);
-    strcpy(debug.msg, "debug...");
-    send_msg(debug, server_fd);
+    // NCURSES initialization:
+    cbreak();              // pass key presses to program, but not signals
+    noecho();              // don't echo key presses to screen
+    keypad(stdscr, TRUE);  // allow arrow keys
+    timeout(0);            // no blocking on getch()
+    curs_set(0);           // set the cursor to invisible
+    init_colors();         // setup tetris colors
+
+    // Create windows for each section of the interface.
+    board = newwin(tg->rows + 2, 2 * tg->cols + 2, 0, 0);
+    next  = newwin(6, 10, 0, 2 * (tg->cols + 1) + 1);
+    hold  = newwin(6, 10, 7, 2 * (tg->cols + 1) + 1);
+    score = newwin(6, 10, 14, 2 * (tg->cols + 1 ) + 1);
+
+    display_board(board, tg);
+    display_piece(next, tg->next);
+    display_piece(hold, tg->stored);
+    display_score(score, tg);
+    doupdate();
 
     sleep(10); // debug
+
+    //NCURSES reset to original state:
+    nocbreak();             // allow signals
+    echo();                 // echo key presses to screen
+    keypad(stdscr, FALSE);  // disallow arrow keys
+    timeout(-1);      // reset default behaviour of getch()
+    curs_set(1);            // set the cursor back to being visible
+
+    delwin(board);
+    delwin(next);
+    delwin(hold);
+    delwin(score);
+
+//    // reinitialise chat window
+//    chat_box = newwin(5, max_x, max_y - 5, 0);
+//    for(int i = 0; i < max_x; i++){
+//        mvwprintw(chat_box, 0, i, "=");
+//    }
+//
+//    // updating
+//    wrefresh(chat_box);
 
     // end of game sessions: cleanup
     if(end_game() < 0){
@@ -243,6 +304,10 @@ void* start_game(void* arg){
         curses_cleanup();
         mrerror("Error while terminating game session.");
     }
+
+    pthread_mutex_lock(&screenMutex);
+    in_game = 0;
+    pthread_mutex_unlock(&screenMutex);
 
     pthread_exit(NULL);
 }
