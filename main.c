@@ -262,7 +262,11 @@ void* start_game(void* arg){
     display_piece(next, tg->next);
     display_piece(hold, tg->stored);
     display_score(score, tg);
-    doupdate();
+
+    wrefresh(board);
+    wrefresh(next);
+    wrefresh(hold);
+    wrefresh(score);
 
     sleep(10); // debug
 
