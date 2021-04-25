@@ -1,7 +1,28 @@
 #include <stdio.h>
 #include <pthread.h>
 #include "curses.h"
+
+#include "tetris.h"
 #include "client_server.h"
+
+/***************************************************************************/
+// TETRIS MACROS (see Stephene Brennan's implementation at https://github.com/brenns10/tetris)
+
+// 2 columns per cell makes the game much nicer.
+#define COLS_PER_CELL 2
+
+// Macro to print a cell of a specific type to a window.
+#define ADD_BLOCK(w,x) waddch((w),' '|A_REVERSE|COLOR_PAIR(x)); waddch((w),' '|A_REVERSE|COLOR_PAIR(x))
+#define ADD_EMPTY(w) waddch((w), ' '); waddch((w), ' ')
+
+// TETRIS FUNC DEFNS (see Stephene Brennan's implementation at https://github.com/brenns10/tetris)
+
+void sleep_milli(int milliseconds);
+void display_board(WINDOW *w, tetris_game *obj);
+void display_piece(WINDOW *w, tetris_block block);
+void display_score(WINDOW *w, tetris_game *tg);
+void init_colors(void);
+/***************************************************************************/
 
 // GLOBALS
 
@@ -270,4 +291,86 @@ void curses_cleanup(){
     delwin(chat_box);
     endwin();
     fflush(stdout);
+}
+
+/***************************************************************************//**
+ * The following functions are based Stephen Brennan's Tetris implementation,
+ * found at https://github.com/brenns10/tetris, with modifications accordingly.
+ * Modified functions are annotated accordingly. The following have been removed
+ * since the feature set is beyond the scope of this assignment:
+ * (i)   void boss_mode(void);
+ * (ii)  void save(tetris_game *game, WINDOW *w);
+ * (iii) int main(int argc, char **argv); [the main game logic is implemented in
+ *       void* start_game(void* arg) along with the required multi-threading and
+ *       peer-to-peer logic]
+ *
+ * The original copyright is stated below, see StephenBrennan_Tetris_LICENSE.txt
+ * for further details:
+ *
+ * Copyright (c) 2015, Stephen Brennan.  Released under the Revised BSD License.
+ ******************************************************************************/
+
+void sleep_milli(int milliseconds){
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = milliseconds * 1000 * 1000;
+    nanosleep(&ts, NULL);
+}
+
+// Print the tetris board onto the ncurses window.
+void display_board(WINDOW *w, tetris_game *obj){
+    int i, j;
+    box(w, 0, 0);
+    for (i = 0; i < obj->rows; i++) {
+        wmove(w, 1 + i, 1);
+        for (j = 0; j < obj->cols; j++) {
+            if (TC_IS_FILLED(tg_get(obj, i, j))) {
+                ADD_BLOCK(w,tg_get(obj, i, j));
+            } else {
+                ADD_EMPTY(w);
+            }
+        }
+    }
+    wnoutrefresh(w);
+}
+
+// Display a tetris piece in a dedicated window.
+void display_piece(WINDOW *w, tetris_block block){
+    int b;
+    tetris_location c;
+    wclear(w);
+    box(w, 0, 0);
+    if (block.typ == -1) {
+        wnoutrefresh(w);
+        return;
+    }
+    for (b = 0; b < TETRIS; b++) {
+        c = TETROMINOS[block.typ][block.ori][b];
+        wmove(w, c.row + 1, c.col * COLS_PER_CELL + 1);
+        ADD_BLOCK(w, TYPE_TO_CELL(block.typ));
+    }
+    wnoutrefresh(w);
+}
+
+// Display score information in a dedicated window.
+void display_score(WINDOW *w, tetris_game *tg){
+    wclear(w);
+    box(w, 0, 0);
+    wprintw(w, "Score\n%d\n", tg->points);
+    wprintw(w, "Level\n%d\n", tg->level);
+    wprintw(w, "Lines\n%d\n", tg->lines_remaining);
+    wnoutrefresh(w);
+}
+
+// Do the NCURSES initialization steps for color blocks.
+void init_colors(void){
+    start_color();
+    //init_color(COLOR_ORANGE, 1000, 647, 0);
+    init_pair(TC_CELLI, COLOR_CYAN, COLOR_BLACK);
+    init_pair(TC_CELLJ, COLOR_BLUE, COLOR_BLACK);
+    init_pair(TC_CELLL, COLOR_WHITE, COLOR_BLACK);
+    init_pair(TC_CELLO, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(TC_CELLS, COLOR_GREEN, COLOR_BLACK);
+    init_pair(TC_CELLT, COLOR_MAGENTA, COLOR_BLACK);
+    init_pair(TC_CELLZ, COLOR_RED, COLOR_BLACK);
 }
