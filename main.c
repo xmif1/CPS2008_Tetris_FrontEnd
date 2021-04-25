@@ -7,6 +7,9 @@
 
 WINDOW* live_chat;
 WINDOW* chat_box;
+int connection_open = 0;
+int server_err = 0;
+pthread_mutex_t serverConnectionMutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_t live_chat_thread;
 pthread_t sent_chat_thread;
@@ -18,7 +21,7 @@ pthread_t start_game_thread;
 
 void* get_chat_msgs(void* arg);
 void* send_chat_msgs(void* arg);
-void* score_update(void* arg)
+void* score_update(void* arg);
 void* start_game(void* arg);
 void curses_cleanup();
 
@@ -86,26 +89,27 @@ int main(){
         // when connection closes, proceed to cleanup and close everything gracefully
         pthread_cancel(live_chat_thread);
         pthread_cancel(sent_chat_thread);
-        signalGameTermination();
+
+	curses_cleanup();
+
+        if(server_err){
+            smrerror("Server disconnected abruptly.");
+        }
+
+	if(signalGameTermination() && pthread_join(start_game_thread, NULL) != 0){
+            mrerror("Error while terminating game session.");
+	}
 
         if(pthread_join(live_chat_thread, NULL) != 0){
-            curses_cleanup();
             mrerror("Error while terminating chat services.");
         }
 
         if(pthread_join(sent_chat_thread, NULL) != 0){
-            curses_cleanup();
             mrerror("Error while terminating chat services.");
         }
 
-        if(pthread_join(start_game_thread, NULL) != 0){
-            curses_cleanup();
-            mrerror("Error while terminating game session.");
-        }
-
-        curses_cleanup();
         if(server_err){
-            mrerror("Server disconnected abruptly.");
+            mrerror("Exiting due to server disconnection...");
         }
     }
     else{
@@ -191,10 +195,17 @@ void* start_game(void* arg){
         mrerror("Error while creating thread to send score updates to game server");
     }
 
-    sleep(2); // debug
+
+    msg debug;
+    debug.msg_type = CHAT;
+    debug.msg = malloc(16);
+    strcpy(debug.msg, "debug...");
+    send_msg(debug, server_fd);
+
+    sleep(10); // debug
 
     // end of game sessions: cleanup
-    if(send_msg(score_msg, server_fd) < 0){
+    if(end_game() < 0){
         pthread_mutex_lock(&serverConnectionMutex);
         connection_open = 0;
         server_err = 1;
