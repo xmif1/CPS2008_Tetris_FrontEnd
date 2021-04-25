@@ -137,6 +137,7 @@ void* get_chat_msgs(void* arg){
 
 void* send_chat_msgs(void* arg){
     while(connection_open){
+        flushinp();
         msg to_send;
         to_send.msg = malloc(1);
         if(to_send.msg == NULL){
@@ -221,6 +222,8 @@ void* start_game(void* arg){
         curses_cleanup();
         mrerror("Error while terminating game session.");
     }
+
+    pthread_exit(NULL);
 }
 
 void* score_update(void* arg){
