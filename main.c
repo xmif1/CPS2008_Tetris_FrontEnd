@@ -26,11 +26,13 @@ void init_colors(void);
 
 // GLOBALS
 
-WINDOW* live_chat, chat_box, board, next, hold, score;
+WINDOW *live_chat_border, *live_chat, *chat_box_border, *chat_box, *board, *next, *hold, *score;
 
 int in_game = 0;
 int connection_open = 0;
 int server_err = 0;
+
+int max_x, max_y, cols, rows;
 
 pthread_mutex_t serverConnectionMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t screenMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -56,23 +58,39 @@ int main(){
         connection_open = 1;
 
         // setting up ncurses
-        int max_y, max_x;
         initscr();
 
         // defining windows and their properties
         getmaxyx(stdscr, max_y, max_x);
-        live_chat = newwin(max_y - 5, max_x, 0, 0);
+        int n_x_lines = (int) (max_x / 2);
+
+        live_chat_border = newwin(max_y - 5, n_x_lines, 0, 0);
+        live_chat = newwin(max_y - 7, n_x_lines - 2, 1, 1);
         scrollok(live_chat, TRUE);
-        chat_box = newwin(5, max_x, max_y - 5, 0);
+        chat_box_border = newwin(5, n_x_lines, max_y - 5, 0);
+        chat_box = newwin(3, n_x_lines - 2, max_y - 4, 1);
+
+	int offset_x = n_x_lines + 1;
+        int offset_y = 0;
+
+        rows = max_y - 2 - offset_y;
+        cols = (int) ((max_x / 4) - 10);
+
+        // Create windows for each section of the tetris board
+        board = newwin(max_y + 2, 2 * cols + 2, offset_y, offset_x);
+        next  = newwin(6, 10, offset_y, 2 * (cols + 1) + 1 + offset_x);
+        hold  = newwin(6, 10, 7 + offset_y, 2 * (cols + 1) + 1 + offset_x);
+        score = newwin(6, 10, 14 + offset_y, 2 * (cols + 1 ) + 1 + offset_x);
+
+	wborder(live_chat_border, '|', '|', '-', '-', '+', '+', '|', '|');
+	wborder(chat_box_border, '|', '|', '-', '-', '|', '|', '+', '+');
 
         // printing titles and border
         mvwprintw(live_chat, 0, 0, "Super Battle Tetris Chat Server\n\n");
 
-        for(int i = 0; i < max_x; i++){
-            mvwprintw(chat_box, 0, i, "=");
-        }
-
         // updating
+	wrefresh(live_chat_border);
+	wrefresh(chat_box_border);
         wrefresh(live_chat);
         wrefresh(chat_box);
 
@@ -114,7 +132,7 @@ int main(){
         pthread_cancel(live_chat_thread);
         pthread_cancel(sent_chat_thread);
 
-	    curses_cleanup();
+	curses_cleanup();
 
         if(server_err){
             smrerror("Server disconnected abruptly.");
@@ -153,11 +171,9 @@ void* get_chat_msgs(void* arg){
         waddstr(live_chat, recv_msg.msg);
         waddch(live_chat, '\n');
 
-        pthread_mutex_lock(&screenMutex);
-        if(!in_game){
-            wrefresh(live_chat);
-        }
-        pthread_mutex_unlock(&screenMutex);
+	pthread_mutex_lock(&screenMutex);
+        wrefresh(live_chat);
+	pthread_mutex_unlock(&screenMutex);
 
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
@@ -167,9 +183,9 @@ void* get_chat_msgs(void* arg){
 
 void* send_chat_msgs(void* arg){
     while(connection_open){
-        pthread_mutex_lock(&screenMutex);
-        if(in_game){
-            pthread_mutex_unlock(&screenMutex);
+	pthread_mutex_lock(&screenMutex);
+	if(in_game){
+	    pthread_mutex_unlock(&screenMutex);
             sleep(1);
 
             continue;
@@ -212,7 +228,7 @@ void* send_chat_msgs(void* arg){
             pthread_mutex_unlock(&serverConnectionMutex);
         }
 
-        wmove(chat_box, 1, 0);
+        wmove(chat_box, 0, 0);
         wclrtobot(chat_box);
         wnoutrefresh(chat_box);
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -228,6 +244,7 @@ void* start_game(void* arg){
 
     tetris_game *tg;
     tetris_move move = TM_NONE;
+    tg = tg_create(rows, cols);
 
     // create threads for accepting peer-to-peer connections
     if(pthread_create(&accept_p2p_thread, NULL, accept_peer_connections, (void*) NULL) != 0){
@@ -242,8 +259,6 @@ void* start_game(void* arg){
         mrerror("Error while creating thread to send score updates to game server");
     }
 
-    // delwin(chat_box);
-
     // NCURSES initialization:
     cbreak();              // pass key presses to program, but not signals
     noecho();              // don't echo key presses to screen
@@ -252,44 +267,23 @@ void* start_game(void* arg){
     curs_set(0);           // set the cursor to invisible
     init_colors();         // setup tetris colors
 
-    // Create windows for each section of the interface.
-    board = newwin(tg->rows + 2, 2 * tg->cols + 2, 0, 0);
-    next  = newwin(6, 10, 0, 2 * (tg->cols + 1) + 1);
-    hold  = newwin(6, 10, 7, 2 * (tg->cols + 1) + 1);
-    score = newwin(6, 10, 14, 2 * (tg->cols + 1 ) + 1);
-
     display_board(board, tg);
     display_piece(next, tg->next);
     display_piece(hold, tg->stored);
     display_score(score, tg);
 
-    wrefresh(board);
-    wrefresh(next);
-    wrefresh(hold);
-    wrefresh(score);
+    pthread_mutex_lock(&screenMutex);
+    doupdate();
+    pthread_mutex_unlock(&screenMutex);
 
     sleep(10); // debug
 
-    //NCURSES reset to original state:
-    nocbreak();             // allow signals
-    echo();                 // echo key presses to screen
-    keypad(stdscr, FALSE);  // disallow arrow keys
-    timeout(-1);      // reset default behaviour of getch()
-    curs_set(1);            // set the cursor back to being visible
-
-    delwin(board);
-    delwin(next);
-    delwin(hold);
-    delwin(score);
-
-//    // reinitialise chat window
-//    chat_box = newwin(5, max_x, max_y - 5, 0);
-//    for(int i = 0; i < max_x; i++){
-//        mvwprintw(chat_box, 0, i, "=");
-//    }
-//
-//    // updating
-//    wrefresh(chat_box);
+    pthread_mutex_lock(&screenMutex);
+    wclear(board);
+    wclear(next);
+    wclear(hold);
+    wclear(score);
+    pthread_mutex_unlock(&screenMutex);
 
     // end of game sessions: cleanup
     if(end_game() < 0){
@@ -308,6 +302,13 @@ void* start_game(void* arg){
         curses_cleanup();
         mrerror("Error while terminating game session.");
     }
+
+    //NCURSES reset to original state:
+    nocbreak();             // allow signals
+    echo();                 // echo key presses to screen
+    keypad(stdscr, FALSE);  // disallow arrow keys
+    timeout(-1);            // reset default behaviour of getch()
+    curs_set(1);            // set the cursor back to being visible
 
     pthread_mutex_lock(&screenMutex);
     in_game = 0;
@@ -358,7 +359,15 @@ void* score_update(void* arg){
 void curses_cleanup(){
     delwin(live_chat);
     delwin(chat_box);
+    delwin(live_chat_border);
+    delwin(chat_box_border);
+    delwin(board);
+    delwin(next);
+    delwin(hold);
+    delwin(score);
+
     endwin();
+
     fflush(stdout);
 }
 
