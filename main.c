@@ -7,9 +7,6 @@
 
 WINDOW* live_chat;
 WINDOW* chat_box;
-int connection_open = 0;
-int server_err = 0;
-pthread_mutex_t connectionMutex = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_t live_chat_thread;
 pthread_t sent_chat_thread;
@@ -21,6 +18,7 @@ pthread_t start_game_thread;
 
 void* get_chat_msgs(void* arg);
 void* send_chat_msgs(void* arg);
+void* score_update(void* arg)
 void* start_game(void* arg);
 void curses_cleanup();
 
@@ -67,10 +65,10 @@ int main(){
             recv_server_msg = enqueue_server_msg(server_fd);
 
             if(recv_server_msg.msg_type == INVALID){
-		        pthread_mutex_lock(&connectionMutex);
+		        pthread_mutex_lock(&serverConnectionMutex);
 		        connection_open = 0;
 		        server_err = 1;
-		        pthread_mutex_unlock(&connectionMutex);
+		        pthread_mutex_unlock(&serverConnectionMutex);
 	        }else{
                 switch(recv_server_msg.msg_type){
                     case CHAT: handle_chat_msg(recv_server_msg); break;
@@ -88,6 +86,7 @@ int main(){
         // when connection closes, proceed to cleanup and close everything gracefully
         pthread_cancel(live_chat_thread);
         pthread_cancel(sent_chat_thread);
+        signalGameTermination();
 
         if(pthread_join(live_chat_thread, NULL) != 0){
             curses_cleanup();
@@ -97,6 +96,11 @@ int main(){
         if(pthread_join(sent_chat_thread, NULL) != 0){
             curses_cleanup();
             mrerror("Error while terminating chat services.");
+        }
+
+        if(pthread_join(start_game_thread, NULL) != 0){
+            curses_cleanup();
+            mrerror("Error while terminating game session.");
         }
 
         curses_cleanup();
@@ -158,10 +162,10 @@ void* send_chat_msgs(void* arg){
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         if(send_msg(to_send, server_fd) < 0){
-            pthread_mutex_lock(&connectionMutex);
+            pthread_mutex_lock(&serverConnectionMutex);
             connection_open = 0;
             server_err = 1;
-            pthread_mutex_unlock(&connectionMutex);
+            pthread_mutex_unlock(&serverConnectionMutex);
         }
 
         wmove(chat_box, 1, 0);
@@ -190,10 +194,61 @@ void* start_game(void* arg){
     sleep(2); // debug
 
     // end of game sessions: cleanup
-    end_game();
+    if(send_msg(score_msg, server_fd) < 0){
+        pthread_mutex_lock(&serverConnectionMutex);
+        connection_open = 0;
+        server_err = 1;
+        pthread_mutex_unlock(&serverConnectionMutex);
+    }
 
-    pthread_join(accept_p2p_thread, NULL);
-    pthread_join(score_update_thread, NULL);
+    if(pthread_join(accept_p2p_thread, NULL) != 0){
+        curses_cleanup();
+        mrerror("Error while terminating game session.");
+    }
+
+    if(pthread_join(score_update_thread, NULL) != 0){
+        curses_cleanup();
+        mrerror("Error while terminating game session.");
+    }
+}
+
+void* score_update(void* arg){
+    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
+
+    while(1){
+        sleep(1);
+
+        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+        int score = get_score();
+
+        if(score < 0){
+            break;
+        }
+
+        msg score_msg;
+        score_msg.msg_type = SCORE_UPDATE;
+
+        score_msg.msg = malloc(7);
+        if(score_msg.msg == NULL){
+            mrerror("Failed to allocate memory for score update to server");
+        }
+        sprintf(score_msg.msg, "%d", score);
+
+        if(send_msg(score_msg, server_fd) < 0){
+            signalGameTermination();
+
+            pthread_mutex_lock(&serverConnectionMutex);
+            connection_open = 0;
+            server_err = 1;
+            pthread_mutex_unlock(&serverConnectionMutex);
+
+            break;
+        }
+
+        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+    }
+
+    pthread_exit(NULL);
 }
 
 void curses_cleanup(){
