@@ -187,17 +187,13 @@ void* start_game(void* arg){
         mrerror("Error while creating thread to send score updates to game server");
     }
 
-    printf("started score update thread!\n"); //debug
+    sleep(2); // debug
 
     // end of game sessions: cleanup
     end_game();
 
-    printf("p2p closed!\n"); //debug
-
     pthread_join(accept_p2p_thread, NULL);
     pthread_join(score_update_thread, NULL);
-
-    printf("stopped accepting msgs!\n"); //debug
 }
 
 void curses_cleanup(){
