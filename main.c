@@ -71,7 +71,7 @@ int main(){
         scrollok(live_chat, TRUE);
         chat_box_border = newwin(5, n_x_lines, max_y - 5, 0);
         chat_box = newwin(3, n_x_lines - 2, max_y - 4, 1);
-	wtimeout(chat_box, 10);
+	wtimeout(chat_box, 0);
 
 	int offset_x = n_x_lines + 1;
         int offset_y = 0;
@@ -164,7 +164,7 @@ int main(){
 void* get_chat_msgs(void* arg){
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
     while(connection_open){
-        msg recv_msg;
+        msg recv_msg; 
         recv_msg = dequeue_chat_msg();
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -192,6 +192,7 @@ void* send_chat_msgs(void* arg){
 	pthread_mutex_unlock(&screenMutex);
 
         flushinp();
+
         msg to_send;
         to_send.msg = malloc(1);
         if(to_send.msg == NULL){
@@ -206,9 +207,9 @@ void* send_chat_msgs(void* arg){
             pthread_mutex_lock(&screenMutex);
 
             pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	    if(in_game){ pthread_mutex_unlock(&screenMutex); break;}
+	    if(in_game){pthread_mutex_unlock(&screenMutex); break;}
 
-	    c = wgetch(chat_box);
+	    c = mvwgetch(chat_box, 0, i);
 
 	    if(c == ERR){
 		pthread_mutex_unlock(&screenMutex);
@@ -249,7 +250,7 @@ void* send_chat_msgs(void* arg){
 	pthread_mutex_lock(&screenMutex);
         wmove(chat_box, 0, 0);
         wclrtobot(chat_box);
-        wrefresh(chat_box);
+        wnoutrefresh(chat_box);
 	pthread_mutex_unlock(&screenMutex);
 
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
@@ -260,6 +261,7 @@ void* send_chat_msgs(void* arg){
 
 void* start_game(void* arg){
     pthread_mutex_lock(&screenMutex);
+    savetty();
     in_game = 1;
     pthread_mutex_unlock(&screenMutex);
 
@@ -282,6 +284,8 @@ void* start_game(void* arg){
 
     // NCURSES initialization:
     pthread_mutex_lock(&screenMutex);
+    noecho();
+    cbreak();
     init_colors();         // setup tetris colors
     pthread_mutex_unlock(&screenMutex);
 
@@ -327,11 +331,11 @@ void* start_game(void* arg){
 
     //NCURSES reset to original state:
     pthread_mutex_lock(&screenMutex);
-    wmove(chat_box, 0, 0);
-    wclear(chat_box);
-    wrefresh(chat_box);
+    echo();
+    nocbreak();
 
     in_game = 0;
+    resetty();
     pthread_mutex_unlock(&screenMutex);
 
     pthread_exit(NULL);
