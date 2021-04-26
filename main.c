@@ -32,7 +32,9 @@ int in_game = 0;
 int connection_open = 0;
 int server_err = 0;
 
-int max_x, max_y, cols, rows;
+int rows = 22;
+int cols = 10;
+int max_x, max_y;
 
 pthread_mutex_t serverConnectionMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t screenMutex = PTHREAD_MUTEX_INITIALIZER;
@@ -62,22 +64,20 @@ int main(){
 
         // defining windows and their properties
         getmaxyx(stdscr, max_y, max_x);
-        int n_x_lines = (int) (max_x / 2);
+        int n_x_lines = max_x - 4 * (cols + 1);
 
         live_chat_border = newwin(max_y - 5, n_x_lines, 0, 0);
         live_chat = newwin(max_y - 7, n_x_lines - 2, 1, 1);
         scrollok(live_chat, TRUE);
         chat_box_border = newwin(5, n_x_lines, max_y - 5, 0);
         chat_box = newwin(3, n_x_lines - 2, max_y - 4, 1);
+	wtimeout(chat_box, 10);
 
 	int offset_x = n_x_lines + 1;
         int offset_y = 0;
 
-        rows = max_y - 2 - offset_y;
-        cols = (int) ((max_x / 4) - 10);
-
         // Create windows for each section of the tetris board
-        board = newwin(max_y + 2, 2 * cols + 2, offset_y, offset_x);
+        board = newwin(rows + 2, 2 * cols + 2, offset_y, offset_x);
         next  = newwin(6, 10, offset_y, 2 * (cols + 1) + 1 + offset_x);
         hold  = newwin(6, 10, 7 + offset_y, 2 * (cols + 1) + 1 + offset_x);
         score = newwin(6, 10, 14 + offset_y, 2 * (cols + 1 ) + 1 + offset_x);
@@ -168,10 +168,10 @@ void* get_chat_msgs(void* arg){
         recv_msg = dequeue_chat_msg();
 
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-        waddstr(live_chat, recv_msg.msg);
-        waddch(live_chat, '\n');
 
 	pthread_mutex_lock(&screenMutex);
+        waddstr(live_chat, recv_msg.msg);
+        waddch(live_chat, '\n');
         wrefresh(live_chat);
 	pthread_mutex_unlock(&screenMutex);
 
@@ -183,14 +183,13 @@ void* get_chat_msgs(void* arg){
 
 void* send_chat_msgs(void* arg){
     while(connection_open){
-	pthread_mutex_lock(&screenMutex);
+        pthread_mutex_lock(&screenMutex);
 	if(in_game){
 	    pthread_mutex_unlock(&screenMutex);
             sleep(1);
-
             continue;
-        }
-        pthread_mutex_unlock(&screenMutex);
+	}
+	pthread_mutex_unlock(&screenMutex);
 
         flushinp();
         msg to_send;
@@ -202,12 +201,28 @@ void* send_chat_msgs(void* arg){
         to_send.msg_type = CHAT;
 
         int c; int i = 0;
-        while((c = wgetch(chat_box)) != '\n' && c != EOF && c != '\r'){
-            if((c == KEY_BACKSPACE || c == 127 || c == '\b') && i > 0){
+
+        while(1){
+            pthread_mutex_lock(&screenMutex);
+
+            pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
+	    if(in_game){ pthread_mutex_unlock(&screenMutex); break;}
+
+	    c = wgetch(chat_box);
+
+	    if(c == ERR){
+		pthread_mutex_unlock(&screenMutex);
+		continue;
+            }
+            else if(c == '\n' || c == EOF || c == '\r'){
+        	pthread_mutex_unlock(&screenMutex);
+		break;
+	    }
+            else if((c == KEY_BACKSPACE || c == 127 || c == '\b') && i > 0){
                 i--;
                 to_send.msg[i] = '\0';
                 wdelch(chat_box);
-            }else{
+	    }else{
                 to_send.msg[i] = (char) c;
                 i++;
             }
@@ -216,6 +231,9 @@ void* send_chat_msgs(void* arg){
             if(to_send.msg == NULL){
                 mrerror("Error while allocating memory");
             }
+
+	    pthread_mutex_unlock(&screenMutex);
+            pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         }
 
         to_send.msg[i] = '\0';
@@ -228,9 +246,12 @@ void* send_chat_msgs(void* arg){
             pthread_mutex_unlock(&serverConnectionMutex);
         }
 
+	pthread_mutex_lock(&screenMutex);
         wmove(chat_box, 0, 0);
         wclrtobot(chat_box);
-        wnoutrefresh(chat_box);
+        wrefresh(chat_box);
+	pthread_mutex_unlock(&screenMutex);
+
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
     }
 
@@ -260,12 +281,9 @@ void* start_game(void* arg){
     }
 
     // NCURSES initialization:
-    cbreak();              // pass key presses to program, but not signals
-    noecho();              // don't echo key presses to screen
-    keypad(stdscr, TRUE);  // allow arrow keys
-    timeout(0);            // no blocking on getch()
-    curs_set(0);           // set the cursor to invisible
+    pthread_mutex_lock(&screenMutex);
     init_colors();         // setup tetris colors
+    pthread_mutex_unlock(&screenMutex);
 
     display_board(board, tg);
     display_piece(next, tg->next);
@@ -273,16 +291,20 @@ void* start_game(void* arg){
     display_score(score, tg);
 
     pthread_mutex_lock(&screenMutex);
-    doupdate();
+    wrefresh(board);
+    wrefresh(next);
+    wrefresh(hold);
+    wrefresh(score);
     pthread_mutex_unlock(&screenMutex);
 
     sleep(10); // debug
 
     pthread_mutex_lock(&screenMutex);
-    wclear(board);
-    wclear(next);
-    wclear(hold);
-    wclear(score);
+    wclear(board); wrefresh(board);
+    wclear(next); wrefresh(next);
+    wclear(hold); wrefresh(hold);
+    wclear(score); wrefresh(score);
+
     pthread_mutex_unlock(&screenMutex);
 
     // end of game sessions: cleanup
@@ -304,13 +326,11 @@ void* start_game(void* arg){
     }
 
     //NCURSES reset to original state:
-    nocbreak();             // allow signals
-    echo();                 // echo key presses to screen
-    keypad(stdscr, FALSE);  // disallow arrow keys
-    timeout(-1);            // reset default behaviour of getch()
-    curs_set(1);            // set the cursor back to being visible
-
     pthread_mutex_lock(&screenMutex);
+    wmove(chat_box, 0, 0);
+    wclear(chat_box);
+    wrefresh(chat_box);
+
     in_game = 0;
     pthread_mutex_unlock(&screenMutex);
 
