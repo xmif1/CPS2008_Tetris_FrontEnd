@@ -159,7 +159,7 @@ int main(){
             }else{
                 sleep(10);
 		game_cleanup();
-		doupdate();
+		killchar();
                 in_game = 0;
             }
         }
@@ -385,7 +385,7 @@ void sleep_milli(int milliseconds){
 // Print the tetris board onto the ncurses window.
 void display_board(WINDOW *w, tetris_game *obj){
     int i, j;
-    box(w, 0, 0);
+    wborder(w, '|', '|', '-', '-', '+', '+', '+', '+');
     for (i = 0; i < obj->rows; i++) {
         wmove(w, 1 + i, 1);
         for (j = 0; j < obj->cols; j++) {
@@ -404,7 +404,7 @@ void display_piece(WINDOW *w, tetris_block block){
     int b;
     tetris_location c;
     wclear(w);
-    box(w, 0, 0);
+    wborder(w, '|', '|', '-', '-', '+', '+', '+', '+');
     if (block.typ == -1) {
         wnoutrefresh(w);
         return;
@@ -420,7 +420,6 @@ void display_piece(WINDOW *w, tetris_block block){
 // Display score information in a dedicated window.
 void display_score(WINDOW *w, tetris_game *tg){
     wclear(w);
-    box(w, 0, 0);
     wprintw(w, "Score\n%d\n", tg->points);
     wprintw(w, "Level\n%d\n", tg->level);
     wprintw(w, "Lines\n%d\n", tg->lines_remaining);
