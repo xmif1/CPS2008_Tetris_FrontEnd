@@ -32,37 +32,38 @@ int in_game = 0;
 int connection_open = 0;
 int server_err = 0;
 
-int rows = 22;
-int cols = 10;
-int max_x, max_y;
+tetris_game* tg;
 
 pthread_mutex_t serverConnectionMutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t screenMutex = PTHREAD_MUTEX_INITIALIZER;
-
-pthread_t live_chat_thread;
-pthread_t sent_chat_thread;
+pthread_t server_conn_thread;
 pthread_t accept_p2p_thread;
 pthread_t score_update_thread;
-pthread_t start_game_thread;
 
 // FUNC DEFNS
 
-void* get_chat_msgs(void* arg);
-void* send_chat_msgs(void* arg);
-void* score_update(void* arg);
-void* start_game(void* arg);
+void send_chat_msg();
+void game_cleanup();
 void curses_cleanup();
+void start_game(int rows, int cols);
+void* score_update(void* arg);
+void* get_chat_msgs(void* arg);
+int get_chat_box_char(msg to_send, int i)
 
 int main(){
     client_init();
 
     if(server_fd >= 0){
+        pthread_mutex_lock(&serverConnectionMutex);
         connection_open = 1;
+        pthread_mutex_unlock(&serverConnectionMutex);
 
         // setting up ncurses
         initscr();
 
         // defining windows and their properties
+        int rows = 22; int cols = 10;
+
+        int max_x, max_y;
         getmaxyx(stdscr, max_y, max_x);
         int n_x_lines = max_x - 4 * (cols + 1);
 
@@ -71,9 +72,9 @@ int main(){
         scrollok(live_chat, TRUE);
         chat_box_border = newwin(5, n_x_lines, max_y - 5, 0);
         chat_box = newwin(3, n_x_lines - 2, max_y - 4, 1);
-	wtimeout(chat_box, 0);
+        wtimeout(chat_box, 0);
 
-	int offset_x = n_x_lines + 1;
+	    int offset_x = n_x_lines + 1;
         int offset_y = 0;
 
         // Create windows for each section of the tetris board
@@ -82,190 +83,150 @@ int main(){
         hold  = newwin(6, 10, 7 + offset_y, 2 * (cols + 1) + 1 + offset_x);
         score = newwin(6, 10, 14 + offset_y, 2 * (cols + 1 ) + 1 + offset_x);
 
-	wborder(live_chat_border, '|', '|', '-', '-', '+', '+', '|', '|');
-	wborder(chat_box_border, '|', '|', '-', '-', '|', '|', '+', '+');
+	    wborder(live_chat_border, '|', '|', '-', '-', '+', '+', '|', '|');
+	    wborder(chat_box_border, '|', '|', '-', '-', '|', '|', '+', '+');
 
         // printing titles and border
         mvwprintw(live_chat, 0, 0, "Super Battle Tetris Chat Server\n\n");
 
         // updating
-	wrefresh(live_chat_border);
-	wrefresh(chat_box_border);
+	    wrefresh(live_chat_border);
+	    wrefresh(chat_box_border);
         wrefresh(live_chat);
         wrefresh(chat_box);
 
-        // create threads for sending and receiving chat messages while connection is open
-        if(pthread_create(&live_chat_thread, NULL, get_chat_msgs, (void*) NULL) != 0){
+        // create threads for sending and receiving server messages while connection is open
+        if(pthread_create(&server_conn_thread, NULL, get_server_msgs, (void*) NULL) != 0){
             curses_cleanup();
-            mrerror("Error while creating thread to service incoming chat messages");
+            mrerror("Error while creating thread to service incoming server messages");
         }
 
-        if(pthread_create(&sent_chat_thread, NULL, send_chat_msgs, (void*) NULL) != 0){
-            curses_cleanup();
-            mrerror("Error while creating thread to service outgoing chat messages");
+        // msg used for sends over chat
+        int msg_to_send_idx = 0;
+        msg to_send;
+        to_send.msg_type = CHAT;
+        to_send.msg = malloc(1);
+        if(to_send.msg == NULL){
+            mrerror("Error while allocating memory");
         }
 
         msg recv_server_msg;
-        while(connection_open){
-            recv_server_msg = enqueue_server_msg(server_fd);
+        while(1){
+            recv_server_msg = dequeue_server_msg();
 
             if(recv_server_msg.msg_type == INVALID){
-		        pthread_mutex_lock(&serverConnectionMutex);
-		        connection_open = 0;
-		        server_err = 1;
-		        pthread_mutex_unlock(&serverConnectionMutex);
-	        }else{
-                switch(recv_server_msg.msg_type){
-                    case CHAT: handle_chat_msg(recv_server_msg); break;
-                    case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
-                    case START_GAME: if(pthread_create(&start_game_thread, NULL, start_game, (void*) NULL) != 0){
-                                         curses_cleanup();
-                                         mrerror("Error while creating thread to service new game session");
-                                     }
+                break;
+            }
 
-                                     break;
+            switch(recv_server_msg.msg_type){
+                case CHAT: {
+                    waddstr(live_chat, recv_msg.msg);
+                    waddch(live_chat, '\n');
+                    wrefresh(live_chat);
+                } break;
+                case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
+                case START_GAME: start_game(rows, cols); break;
+            }
+
+            if(!in_game){
+                while(msg_to_send_idx >= 0){
+                    msg_to_send_idx = get_chat_box_char(to_send, msg_to_send_idx)
                 }
+
+                if(msg_to_send_idx == -1){
+                    send_chat_msg(to_send);
+
+                    msg_to_send_idx = 0;
+                    to_send.msg = realloc(to_send.msg, 1);
+                    if(to_send.msg == NULL){
+                        mrerror("Error while allocating memory");
+                    }
+                }
+            }else{
+                sleep(10);
+                in_game = 0;
             }
         }
 
-        // when connection closes, proceed to cleanup and close everything gracefully
-        pthread_cancel(live_chat_thread);
-        pthread_cancel(sent_chat_thread);
-
-	curses_cleanup();
+	    curses_cleanup();
 
         if(server_err){
             smrerror("Server disconnected abruptly.");
         }
 
-        if(signalGameTermination() && pthread_join(start_game_thread, NULL) != 0){
+        if(signalGameTermination()){
                 mrerror("Error while terminating game session.");
         }
 
-        if(pthread_join(live_chat_thread, NULL) != 0){
-            mrerror("Error while terminating chat services.");
-        }
-
-        if(pthread_join(sent_chat_thread, NULL) != 0){
+        if(pthread_join(server_conn_thread, NULL) != 0){
             mrerror("Error while terminating chat services.");
         }
 
         if(server_err){
             mrerror("Exiting due to server disconnection...");
         }
-    }
-    else{
+    }else{
         mrerror("Cannot establish connection to game server");
     }
 
     return 0;
 }
 
-void* get_chat_msgs(void* arg){
-    pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
-    while(connection_open){
-        msg recv_msg; 
-        recv_msg = dequeue_chat_msg();
+void* get_server_msgs(void* arg){
+    while(1){
+        recv_server_msg = enqueue_server_msg(server_fd);
 
-        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-
-	pthread_mutex_lock(&screenMutex);
-        waddstr(live_chat, recv_msg.msg);
-        waddch(live_chat, '\n');
-        wrefresh(live_chat);
-	pthread_mutex_unlock(&screenMutex);
-
-        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+        if(recv_server_msg.msg_type == INVALID){
+            break;
+        }
     }
 
     pthread_exit(NULL);
 }
 
-void* send_chat_msgs(void* arg){
-    while(connection_open){
-        pthread_mutex_lock(&screenMutex);
-	if(in_game){
-	    pthread_mutex_unlock(&screenMutex);
-            sleep(1);
-            continue;
-	}
-	pthread_mutex_unlock(&screenMutex);
+int get_chat_box_char(msg to_send, int i){
+    int c = mvwgetch(chat_box, 0, i);
 
-        flushinp();
-
-        msg to_send;
-        to_send.msg = malloc(1);
-        if(to_send.msg == NULL){
-            mrerror("Error while allocating memory");
-        }
-
-        to_send.msg_type = CHAT;
-
-        int c; int i = 0;
-
-        while(1){
-            pthread_mutex_lock(&screenMutex);
-
-            pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-	    if(in_game){pthread_mutex_unlock(&screenMutex); break;}
-
-	    c = mvwgetch(chat_box, 0, i);
-
-	    if(c == ERR){
-		pthread_mutex_unlock(&screenMutex);
-		continue;
-            }
-            else if(c == '\n' || c == EOF || c == '\r'){
-        	pthread_mutex_unlock(&screenMutex);
-		break;
-	    }
-            else if((c == KEY_BACKSPACE || c == 127 || c == '\b') && i > 0){
-                i--;
-                to_send.msg[i] = '\0';
-                wdelch(chat_box);
-	    }else{
-                to_send.msg[i] = (char) c;
-                i++;
-            }
-
-            to_send.msg = realloc(to_send.msg, i+1);
-            if(to_send.msg == NULL){
-                mrerror("Error while allocating memory");
-            }
-
-	    pthread_mutex_unlock(&screenMutex);
-            pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-        }
-
+    if(c == ERR){
+        return -2;
+    }
+    else if(c == '\n' || c == EOF || c == '\r'){
         to_send.msg[i] = '\0';
-
-        pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
-        if(send_msg(to_send, server_fd) < 0){
-            pthread_mutex_lock(&serverConnectionMutex);
-            connection_open = 0;
-            server_err = 1;
-            pthread_mutex_unlock(&serverConnectionMutex);
-        }
-
-	pthread_mutex_lock(&screenMutex);
-        wmove(chat_box, 0, 0);
-        wclrtobot(chat_box);
-        wnoutrefresh(chat_box);
-	pthread_mutex_unlock(&screenMutex);
-
-        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
+        return -1;
+    }
+    else if((c == KEY_BACKSPACE || c == 127 || c == '\b') && i > 0){
+        i--;
+        to_send.msg[i] = '\0';
+        wdelch(chat_box);
+    }else{
+        to_send.msg[i] = (char) c;
+        i++;
     }
 
-    pthread_exit(NULL);
+    to_send.msg = realloc(to_send.msg, i+1);
+    if(to_send.msg == NULL){
+        mrerror("Error while allocating memory");
+    }
+
+    return i;
 }
 
-void* start_game(void* arg){
-    pthread_mutex_lock(&screenMutex);
-    savetty();
-    in_game = 1;
-    pthread_mutex_unlock(&screenMutex);
+void send_chat_msg(msg to_send){
+    if(send_msg(to_send, server_fd) < 0){
+        pthread_mutex_lock(&serverConnectionMutex);
+        connection_open = 0;
+        server_err = 1;
+        pthread_mutex_unlock(&serverConnectionMutex);
+    }
 
-    tetris_game *tg;
+    wmove(chat_box, 0, 0);
+    wclrtobot(chat_box);
+    wrefresh(chat_box);
+}
+
+void start_game(int rows, int cols){
+    in_game = 1;
+
     tetris_move move = TM_NONE;
     tg = tg_create(rows, cols);
 
@@ -283,35 +244,28 @@ void* start_game(void* arg){
     }
 
     // NCURSES initialization:
-    pthread_mutex_lock(&screenMutex);
     noecho();
     cbreak();
     init_colors();         // setup tetris colors
-    pthread_mutex_unlock(&screenMutex);
 
     display_board(board, tg);
     display_piece(next, tg->next);
     display_piece(hold, tg->stored);
     display_score(score, tg);
 
-    pthread_mutex_lock(&screenMutex);
     wrefresh(board);
     wrefresh(next);
     wrefresh(hold);
     wrefresh(score);
-    pthread_mutex_unlock(&screenMutex);
+}
 
-    sleep(10); // debug
-
-    pthread_mutex_lock(&screenMutex);
+// end of game sessions: cleanup
+void game_cleanup(){
     wclear(board); wrefresh(board);
     wclear(next); wrefresh(next);
     wclear(hold); wrefresh(hold);
     wclear(score); wrefresh(score);
 
-    pthread_mutex_unlock(&screenMutex);
-
-    // end of game sessions: cleanup
     if(end_game() < 0){
         pthread_mutex_lock(&serverConnectionMutex);
         connection_open = 0;
@@ -330,15 +284,8 @@ void* start_game(void* arg){
     }
 
     //NCURSES reset to original state:
-    pthread_mutex_lock(&screenMutex);
     echo();
     nocbreak();
-
-    in_game = 0;
-    resetty();
-    pthread_mutex_unlock(&screenMutex);
-
-    pthread_exit(NULL);
 }
 
 void* score_update(void* arg){
