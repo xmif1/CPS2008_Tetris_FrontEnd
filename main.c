@@ -169,13 +169,13 @@ int main(){
                 display_piece(hold, tg->stored);
                 display_score(score, tg);
 
-                wrefresh(board);
-                wrefresh(next);
-                wrefresh(hold);
-                wrefresh(score);
-                sleep_milli(10);
+		wrefresh(board);
+		wrefresh(next);
+		wrefresh(hold);
+		wrefresh(score);
+		sleep_milli(10);
 
-                switch(getch()){
+                switch(mvwgetch(chat_box, 0, 0)){
                     case KEY_LEFT:
                         curr_move = TM_LEFT;
                         break;
@@ -305,7 +305,7 @@ void start_game(int rows, int cols){
 
     // NCURSES initialization:
     init_colors();         // setup tetris colors
-    keypad(stdscr, TRUE);
+    keypad(chat_box, TRUE);
 }
 
 // end of game sessions: cleanup
@@ -335,7 +335,7 @@ void game_cleanup(){
     }
 
     //NCURSES reset to original state:
-    keypad(stdscr, TRUE);
+    keypad(chat_box, FALSE);
 
     wmove(chat_box, 0, 0);
     wrefresh(chat_box);

@@ -374,7 +374,7 @@ static void tg_adjust_score(tetris_game *obj, int lines_cleared)
 /*
   Return true if the game is over.
  */
-static bool tg_game_over(tetris_game *obj)
+bool tg_game_over(tetris_game *obj)
 {
   int i, j;
   bool over = false;
@@ -436,7 +436,7 @@ void tg_init(tetris_game *obj, int rows, int cols){
   obj->stored.ori = 0;
   obj->stored.loc.row = 0;
   obj->next.loc.col = obj->cols/2 - 2;
-  printf("%d", obj->falling.loc.col);
+  // printf("%d", obj->falling.loc.col); // @xandru: do not mix stdio with curses!
 }
 
 tetris_game *tg_create(int rows, int cols){
