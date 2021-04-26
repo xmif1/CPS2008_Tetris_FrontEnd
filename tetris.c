@@ -399,8 +399,10 @@ static bool tg_game_over(tetris_game *obj)
 /*
   Do a single game tick: process gravity, user input, and score.  Return true if
   the game is still running, false if it is over.
+
+  @xandru: changed to return number cleared lines, instead of whether the game has finished
  */
-bool tg_tick(tetris_game *obj, tetris_move move){
+int tg_tick(tetris_game *obj, tetris_move move){
   int lines_cleared;
   // Handle gravity.
   tg_do_gravity_tick(obj);
@@ -414,7 +416,7 @@ bool tg_tick(tetris_game *obj, tetris_move move){
   tg_adjust_score(obj, lines_cleared);
 
   // Return whether the game will continue (NOT whether it's over)
-  return !tg_game_over(obj);
+  return lines_cleared;
 }
 
 void tg_init(tetris_game *obj, int rows, int cols){

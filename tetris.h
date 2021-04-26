@@ -150,6 +150,7 @@ void tg_delete(tetris_game *obj);
 // Public methods not related to memory:
 char tg_get(tetris_game *obj, int row, int col);
 bool tg_check(tetris_game *obj, int row, int col);
-bool tg_tick(tetris_game *obj, tetris_move move);
+int tg_tick(tetris_game *obj, tetris_move move);
+bool tg_game_over(tetris_game *obj); // @xandru: made public
 
 #endif // TETRIS_H

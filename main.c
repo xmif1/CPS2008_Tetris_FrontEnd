@@ -33,6 +33,7 @@ int connection_open = 0;
 int server_err = 0;
 
 tetris_game* tg;
+tetris_move curr_move;
 
 pthread_mutex_t serverConnectionMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_t server_conn_thread;
@@ -60,6 +61,7 @@ int main(){
         // setting up ncurses
         initscr();
         curs_set(0);
+        timeout(0);
         cbreak();
 
         // defining windows and their properties
@@ -128,18 +130,18 @@ int main(){
                 } break;
                 case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
                 case START_GAME: {
-		    start_game(rows, cols);
+		            start_game(rows, cols);
 
-		    msg_to_send_idx = 0;
+		            msg_to_send_idx = 0;
                     to_send.msg = realloc(to_send.msg, 1);
                     if(to_send.msg == NULL){
                         mrerror("Error while allocating memory");
                     }
-		} break;
+		        } break;
             }
 
             if(!in_game){
-		int ret = msg_to_send_idx;
+		        int ret = msg_to_send_idx;
                 while(1){
                     ret = get_chat_box_char(to_send, ret);
                     if(ret >= 0){
@@ -155,12 +157,52 @@ int main(){
                     if(to_send.msg == NULL){
                         mrerror("Error while allocating memory");
                     }
-		}
-
+		        }
             }else{
-                sleep(10);
-		game_cleanup();
-                in_game = 0;
+                int lines_cleared = tg_tick(tg, curr_move);
+                if(tg_game_over(tg)){
+                    in_game = 0;
+                }
+
+                display_board(board, tg);
+                display_piece(next, tg->next);
+                display_piece(hold, tg->stored);
+                display_score(score, tg);
+
+                wrefresh(board);
+                wrefresh(next);
+                wrefresh(hold);
+                wrefresh(score);
+                sleep_milli(10);
+
+                switch(getch()){
+                    case KEY_LEFT:
+                        curr_move = TM_LEFT;
+                        break;
+                    case KEY_RIGHT:
+                        curr_move = TM_RIGHT;
+                        break;
+                    case KEY_UP:
+                        curr_move = TM_CLOCK;
+                        break;
+                    case KEY_DOWN:
+                        curr_move = TM_DROP;
+                        break;
+                    case 'q':
+                        in_game = 0;
+                        curr_move = TM_NONE;
+                        break;
+                    case ' ':
+                        curr_move = TM_HOLD;
+                        break;
+                    default:
+                        curr_move = TM_NONE;
+                }
+
+                if(!in_game){
+                    game_cleanup();
+                    flushinp();
+                }
             }
         }
 
@@ -245,7 +287,7 @@ void send_chat_msg(msg to_send){
 void start_game(int rows, int cols){
     in_game = 1;
 
-    tetris_move move = TM_NONE;
+    curr_move = TM_NONE;
     tg = tg_create(rows, cols);
 
     // create threads for accepting peer-to-peer connections
@@ -263,16 +305,7 @@ void start_game(int rows, int cols){
 
     // NCURSES initialization:
     init_colors();         // setup tetris colors
-
-    display_board(board, tg);
-    display_piece(next, tg->next);
-    display_piece(hold, tg->stored);
-    display_score(score, tg);
-
-    wrefresh(board);
-    wrefresh(next);
-    wrefresh(hold);
-    wrefresh(score);
+    keypad(stdscr, TRUE);
 }
 
 // end of game sessions: cleanup
@@ -302,6 +335,8 @@ void game_cleanup(){
     }
 
     //NCURSES reset to original state:
+    keypad(stdscr, TRUE);
+
     wmove(chat_box, 0, 0);
     wrefresh(chat_box);
 }
