@@ -155,11 +155,11 @@ int main(){
                     if(to_send.msg == NULL){
                         mrerror("Error while allocating memory");
                     }
-                }
+		}
+
             }else{
                 sleep(10);
 		game_cleanup();
-		killchar();
                 in_game = 0;
             }
         }
@@ -282,6 +282,13 @@ void game_cleanup(){
     wclear(hold); wrefresh(hold);
     wclear(score); wrefresh(score);
 
+    pthread_cancel(score_update_thread);
+
+    if(pthread_join(score_update_thread, NULL) != 0){
+        curses_cleanup();
+        mrerror("Error while terminating game session.");
+    }
+
     if(end_game() < 0){
         pthread_mutex_lock(&serverConnectionMutex);
         connection_open = 0;
@@ -290,11 +297,6 @@ void game_cleanup(){
     }
 
     if(pthread_join(accept_p2p_thread, NULL) != 0){
-        curses_cleanup();
-        mrerror("Error while terminating game session.");
-    }
-
-    if(pthread_join(score_update_thread, NULL) != 0){
         curses_cleanup();
         mrerror("Error while terminating game session.");
     }
@@ -353,6 +355,7 @@ void curses_cleanup(){
     delwin(hold);
     delwin(score);
 
+    clear();
     endwin();
 
     fflush(stdout);
