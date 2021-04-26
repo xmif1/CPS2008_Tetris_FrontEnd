@@ -46,8 +46,8 @@ void game_cleanup();
 void curses_cleanup();
 void start_game(int rows, int cols);
 void* score_update(void* arg);
-void* get_chat_msgs(void* arg);
-int get_chat_box_char(msg to_send, int i)
+void* get_server_msgs(void* arg);
+int get_chat_box_char(msg to_send, int i);
 
 int main(){
     client_init();
@@ -59,6 +59,8 @@ int main(){
 
         // setting up ncurses
         initscr();
+        curs_set(0);
+        cbreak();
 
         // defining windows and their properties
         int rows = 22; int cols = 10;
@@ -120,20 +122,32 @@ int main(){
 
             switch(recv_server_msg.msg_type){
                 case CHAT: {
-                    waddstr(live_chat, recv_msg.msg);
+                    waddstr(live_chat, recv_server_msg.msg);
                     waddch(live_chat, '\n');
                     wrefresh(live_chat);
                 } break;
                 case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
-                case START_GAME: start_game(rows, cols); break;
+                case START_GAME: {
+		    start_game(rows, cols);
+
+		    msg_to_send_idx = 0;
+                    to_send.msg = realloc(to_send.msg, 1);
+                    if(to_send.msg == NULL){
+                        mrerror("Error while allocating memory");
+                    }
+		} break;
             }
 
             if(!in_game){
-                while(msg_to_send_idx >= 0){
-                    msg_to_send_idx = get_chat_box_char(to_send, msg_to_send_idx)
+		int ret = msg_to_send_idx;
+                while(1){
+                    ret = get_chat_box_char(to_send, ret);
+                    if(ret >= 0){
+                        msg_to_send_idx = ret;
+                    }else{ break;}
                 }
 
-                if(msg_to_send_idx == -1){
+                if(ret == -1){
                     send_chat_msg(to_send);
 
                     msg_to_send_idx = 0;
@@ -144,6 +158,8 @@ int main(){
                 }
             }else{
                 sleep(10);
+		game_cleanup();
+		doupdate();
                 in_game = 0;
             }
         }
@@ -173,6 +189,8 @@ int main(){
 }
 
 void* get_server_msgs(void* arg){
+    msg recv_server_msg;
+
     while(1){
         recv_server_msg = enqueue_server_msg(server_fd);
 
@@ -244,8 +262,6 @@ void start_game(int rows, int cols){
     }
 
     // NCURSES initialization:
-    noecho();
-    cbreak();
     init_colors();         // setup tetris colors
 
     display_board(board, tg);
@@ -284,8 +300,8 @@ void game_cleanup(){
     }
 
     //NCURSES reset to original state:
-    echo();
-    nocbreak();
+    wmove(chat_box, 0, 0);
+    wrefresh(chat_box);
 }
 
 void* score_update(void* arg){
