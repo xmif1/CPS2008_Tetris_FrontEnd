@@ -147,6 +147,13 @@ int main(){
                     mrerror("Error while allocating memory");
                 }
 
+                while(1){
+                    ret = get_chat_box_char(to_send, ret);
+                    if(ret >= 0){
+                        msg_to_send_idx = ret;
+                    }else{ break;}
+                }
+
                 if(ret == -1){
                     send_chat_msg(to_send);
 
