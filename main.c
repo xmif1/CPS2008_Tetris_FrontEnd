@@ -142,19 +142,19 @@ int main(){
 
                 msg to_send;
                 to_send.msg_type = CHAT;
-                to_send.msg = malloc(64);
+                to_send.msg = malloc(512);
                 if(to_send.msg == NULL){
                     mrerror("Error while allocating memory");
                 }
 
                 while(1){
                     ret = get_chat_box_char(to_send, ret);
-                    if(ret >= 0){
+                    if(ret >= 0 && ret < 512){
                         msg_to_send_idx = ret;
                     }else{ break;}
                 }
 
-                if(ret == -1){
+                if(ret == -1 || ret == 512){
                     send_chat_msg(to_send);
 
                     msg_to_send_idx = 0;
@@ -270,13 +270,6 @@ int get_chat_box_char(msg to_send, int i){
     }else{
         to_send.msg[i] = (char) c;
         i++;
-
-        if((i % 64) == 0){
-            to_send.msg = realloc(to_send.msg, i + 64);
-            if(to_send.msg == NULL){
-                mrerror("Error while allocating memory");
-            }
-        }
     }
 
     return i;
@@ -293,8 +286,6 @@ void send_chat_msg(msg to_send){
     wmove(chat_box, 0, 0);
     wclrtobot(chat_box);
     wrefresh(chat_box);
-
-    free(to_send.msg);
 }
 
 void start_game(int rows, int cols){
