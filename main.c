@@ -105,14 +105,8 @@ int main(){
             mrerror("Error while creating thread to service incoming server messages");
         }
 
-        // msg used for sends over chat
+        // maintain msg length used for sends over chat
         int msg_to_send_idx = 0;
-        msg to_send;
-        to_send.msg_type = CHAT;
-        to_send.msg = malloc(1);
-        if(to_send.msg == NULL){
-            mrerror("Error while allocating memory");
-        }
 
         msg recv_server_msg;
         while(1){
@@ -133,7 +127,10 @@ int main(){
 		            start_game(rows, cols);
 
 		            msg_to_send_idx = 0;
-                    to_send.msg = realloc(to_send.msg, 1);
+
+                    msg to_send;
+                    to_send.msg_type = CHAT;
+                    to_send.msg = malloc(1);
                     if(to_send.msg == NULL){
                         mrerror("Error while allocating memory");
                     }
@@ -142,22 +139,18 @@ int main(){
 
             if(!in_game){
 		        int ret = msg_to_send_idx;
-		to_send.msg = realloc(to_send.msg, 64);
-                while(1){
-                    ret = get_chat_box_char(to_send, ret);
-                    if(ret >= 0){
-                        msg_to_send_idx = ret;
-                    }else{ break;}
+
+                msg to_send;
+                to_send.msg_type = CHAT;
+                to_send.msg = malloc(64);
+                if(to_send.msg == NULL){
+                    mrerror("Error while allocating memory");
                 }
 
                 if(ret == -1){
                     send_chat_msg(to_send);
 
                     msg_to_send_idx = 0;
-                    to_send.msg = realloc(to_send.msg, 1);
-                    if(to_send.msg == NULL){
-                        mrerror("Error while allocating memory");
-                    }
 		        }
             }else{
                 int lines_cleared = tg_tick(tg, curr_move);
@@ -293,6 +286,8 @@ void send_chat_msg(msg to_send){
     wmove(chat_box, 0, 0);
     wclrtobot(chat_box);
     wrefresh(chat_box);
+
+    free(to_send.msg);
 }
 
 void start_game(int rows, int cols){
