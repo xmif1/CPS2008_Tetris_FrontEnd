@@ -142,6 +142,11 @@ int main(){
 
             if(!in_game){
 		        int ret = msg_to_send_idx;
+                to_send.msg = realloc(to_send.msg, 512);
+                if(to_send.msg == NULL){
+                    mrerror("Error while allocating memory");
+                }
+
                 while(1){
                     ret = get_chat_box_char(to_send, ret);
                     if(ret >= 0 && ret < 512){
@@ -204,7 +209,7 @@ int main(){
 
                 if(gameSession.game_type == RISING_TIDE){
                     tg_add_lines(tg, get_lines_to_add());
-                    send_lines_cleared(lines_cleared);
+                    send_cleared_lines(lines_cleared);
                 }
 
                 if(!in_game){
@@ -269,11 +274,6 @@ int get_chat_box_char(msg to_send, int i){
     }else{
         to_send.msg[i] = (char) c;
         i++;
-    }
-
-    to_send.msg = realloc(to_send.msg, i+1);
-    if(to_send.msg == NULL){
-        mrerror("Error while allocating memory");
     }
 
     return i;
