@@ -337,7 +337,7 @@ static void tg_shift_lines(tetris_game *obj, int r)
 /*
   @xandru: Add lines spawned by other users as they are cleared.
  */
-void tg_add_lines(tetris_game *obj, int n)
+static void tg_add_lines(tetris_game *obj, int n)
 {
     if(n > 0){
         tg_down(obj);
