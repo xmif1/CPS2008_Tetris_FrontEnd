@@ -105,8 +105,14 @@ int main(){
             mrerror("Error while creating thread to service incoming server messages");
         }
 
-        // maintain msg length used for sends over chat
+        // msg used for sends over chat
         int msg_to_send_idx = 0;
+        msg to_send;
+        to_send.msg_type = CHAT;
+        to_send.msg = malloc(1);
+        if(to_send.msg == NULL){
+            mrerror("Error while allocating memory");
+        }
 
         msg recv_server_msg;
         while(1){
@@ -127,10 +133,7 @@ int main(){
 		            start_game(rows, cols);
 
 		            msg_to_send_idx = 0;
-
-                    msg to_send;
-                    to_send.msg_type = CHAT;
-                    to_send.msg = malloc(1);
+                    to_send.msg = realloc(to_send.msg, 1);
                     if(to_send.msg == NULL){
                         mrerror("Error while allocating memory");
                     }
@@ -139,13 +142,6 @@ int main(){
 
             if(!in_game){
 		        int ret = msg_to_send_idx;
-
-                msg to_send;
-                to_send.msg_type = CHAT;
-                to_send.msg = malloc(512);
-                if(to_send.msg == NULL){
-                    mrerror("Error while allocating memory");
-                }
 
                 while(1){
                     ret = get_chat_box_char(to_send, ret);
@@ -158,6 +154,10 @@ int main(){
                     send_chat_msg(to_send);
 
                     msg_to_send_idx = 0;
+                    to_send.msg = realloc(to_send.msg, 1);
+                    if(to_send.msg == NULL){
+                        mrerror("Error while allocating memory");
+                    }
 		        }
             }else{
                 int lines_cleared = tg_tick(tg, curr_move);
