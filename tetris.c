@@ -335,6 +335,29 @@ static void tg_shift_lines(tetris_game *obj, int r)
 }
 
 /*
+  @xandru: Add lines spawned by other users as they are cleared.
+ */
+static void tg_add_lines(tetris_game *obj, int n)
+{
+    if(n > 0){
+        tg_down(obj);
+
+        int i, j;
+        for (i = 0; i < obj->rows - n; i++) {
+            for (j = 0; j < obj->cols; j++) {
+                if(i - n < 0){
+                    tg_set(obj, i, j, TC_EMPTY);
+                }
+                else{
+                    tg_set(obj, i-n, j, tg_get(obj, i, j));
+                    tg_set(obj, i, j, TC_EMPTY);
+                }
+            }
+        }
+    }
+}
+
+/*
   Find rows that are filled, remove them, shift, and return the number of
   cleared rows.
  */
@@ -415,7 +438,7 @@ int tg_tick(tetris_game *obj, tetris_move move){
 
   tg_adjust_score(obj, lines_cleared);
 
-  // Return whether the game will continue (NOT whether it's over)
+  // Return number of lines cleared
   return lines_cleared;
 }
 

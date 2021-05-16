@@ -151,6 +151,7 @@ void tg_delete(tetris_game *obj);
 char tg_get(tetris_game *obj, int row, int col);
 bool tg_check(tetris_game *obj, int row, int col);
 int tg_tick(tetris_game *obj, tetris_move move);
+void tg_add_lines(tetris_game *obj, int n); // @xandru: newly added
 bool tg_game_over(tetris_game *obj); // @xandru: made public
 
 #endif // TETRIS_H

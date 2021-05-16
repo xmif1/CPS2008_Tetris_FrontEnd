@@ -160,6 +160,7 @@ int main(){
 		        }
             }else{
                 int lines_cleared = tg_tick(tg, curr_move);
+
                 if(tg_game_over(tg)){
                     in_game = 0;
                 }
@@ -169,11 +170,11 @@ int main(){
                 display_piece(hold, tg->stored);
                 display_score(score, tg);
 
-		wrefresh(board);
-		wrefresh(next);
-		wrefresh(hold);
-		wrefresh(score);
-		sleep_milli(10);
+                wrefresh(board);
+                wrefresh(next);
+                wrefresh(hold);
+                wrefresh(score);
+                sleep_milli(10);
 
                 switch(mvwgetch(chat_box, 0, 0)){
                     case KEY_LEFT:
@@ -197,6 +198,13 @@ int main(){
                         break;
                     default:
                         curr_move = TM_NONE;
+                }
+
+                set_score(tg->points);
+
+                if(gameSession.game_type == RISING_TIDE){
+                    tg_add_lines(tg, get_lines_to_add());
+                    send_lines_cleared(lines_cleared);
                 }
 
                 if(!in_game){
@@ -247,7 +255,7 @@ void* get_server_msgs(void* arg){
 int get_chat_box_char(msg to_send, int i){
     int c = mvwgetch(chat_box, 0, i);
 
-    if(c == ERR){
+    if(c == ERR) {
         return -2;
     }
     else if(c == '\n' || c == EOF || c == '\r'){
