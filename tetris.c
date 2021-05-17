@@ -340,10 +340,10 @@ static void tg_shift_lines(tetris_game *obj, int r)
 void tg_add_lines(tetris_game *obj, int n)
 {
     if(n > 0){
-        tg_down(obj);
+	tg_remove(obj, obj->falling);
 
         int i, j;
-        for (i = 0; i < obj->rows - n; i++) {
+        for (i = 0; i <= obj->rows - n; i++) {
             for (j = 0; j < obj->cols; j++) {
                 if(i - n < 0){
                     tg_set(obj, i, j, TC_EMPTY);
@@ -354,6 +354,8 @@ void tg_add_lines(tetris_game *obj, int n)
                 }
             }
         }
+
+	tg_put(obj, obj->falling);
     }
 }
 

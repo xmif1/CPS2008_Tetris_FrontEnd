@@ -166,6 +166,11 @@ int main(){
             }else{
                 int lines_cleared = tg_tick(tg, curr_move);
 
+                if(gameSession.game_type == RISING_TIDE){
+                    tg_add_lines(tg, get_lines_to_add());
+                    send_cleared_lines(lines_cleared);
+                }
+
                 if(tg_game_over(tg)){
                     in_game = 0;
                 }
@@ -206,11 +211,6 @@ int main(){
                 }
 
                 set_score(tg->points);
-
-                if(gameSession.game_type == RISING_TIDE){
-                    tg_add_lines(tg, get_lines_to_add());
-                    send_cleared_lines(lines_cleared);
-                }
 
                 if(!in_game){
                     game_cleanup();
