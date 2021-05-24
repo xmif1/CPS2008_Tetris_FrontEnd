@@ -149,9 +149,16 @@ static bool tg_fits(tetris_game *obj, tetris_block block)
 
 /*
   Return a random tetromino type.
+  @xandru: changed to LCG
  */
-static int random_tetromino(void) {
-  return rand() % NUM_TETROMINOS;
+static int random_tetromino(int seed) {
+  a = 1140671485;
+  c = 128201163;
+  m = 2**24;
+
+  rand = (a*rand + c) % m;
+
+  return rand % NUM_TETROMINOS;
 }
 
 /*
@@ -162,7 +169,7 @@ static void tg_new_falling(tetris_game *obj)
 {
   // Put in a new falling tetromino.
   obj->falling = obj->next;
-  obj->next.typ = random_tetromino();
+  obj->next.typ = random_tetromino(obj->seed);
   obj->next.ori = 0;
   obj->next.loc.row = 0;
   obj->next.loc.col = obj->cols/2 - 2;
@@ -442,7 +449,7 @@ int tg_tick(tetris_game *obj, tetris_move move){
   return lines_cleared;
 }
 
-void tg_init(tetris_game *obj, int rows, int cols){
+void tg_init(tetris_game *obj, int rows, int cols, int seed){
   // Initialization logic
   obj->rows = rows;
   obj->cols = cols;
@@ -459,12 +466,13 @@ void tg_init(tetris_game *obj, int rows, int cols){
   obj->stored.ori = 0;
   obj->stored.loc.row = 0;
   obj->next.loc.col = obj->cols/2 - 2;
+  obj->seed = seed;
   // printf("%d", obj->falling.loc.col); // @xandru: do not mix stdio with curses!
 }
 
-tetris_game *tg_create(int rows, int cols){
+tetris_game *tg_create(int rows, int cols, int seed){
   tetris_game *obj = malloc(sizeof(tetris_game));
-  tg_init(obj, rows, cols);
+  tg_init(obj, rows, cols, seed);
   return obj;
 }
 

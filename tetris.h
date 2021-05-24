@@ -124,7 +124,12 @@ typedef struct{
     Number of lines until you advance to the next level.
    */
   int lines_remaining;
+
+  // @xandru: added seed recieved from server, for consistent tetromino generation between players
+  int seed;
 } tetris_game;
+
+int rand = 0;
 
 /*
   This array stores all necessary information about the cells that are filled by
@@ -142,8 +147,8 @@ extern tetris_location TETROMINOS[NUM_TETROMINOS][NUM_ORIENTATIONS][TETRIS];
 extern int GRAVITY_LEVEL[MAX_LEVEL+1];
 
 // Data structure manipulation.
-void tg_init(tetris_game *obj, int rows, int cols);
-tetris_game *tg_create(int rows, int cols);
+void tg_init(tetris_game *obj, int rows, int cols, int seed); //@xandru: added seed
+tetris_game *tg_create(int rows, int cols, int seed); //@xandru: added seed
 void tg_destroy(tetris_game *obj);
 void tg_delete(tetris_game *obj);
 

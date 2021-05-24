@@ -165,8 +165,12 @@ int main(){
 		        }
             }else{
                 int lines_cleared = tg_tick(tg, curr_move);
+                gameSession.total_lines_cleared += lines_cleared;
 
-                if(tg_game_over(tg)){
+                if(tg_game_over(tg)
+                   || (gameSession.game_type == FAST_TRACK && gameSession.total_lines_cleared == gameSession.n_baselines)
+                   || difftime(time(NULL), gameSession.start_time) >= (gameSession.time * 60)){
+
                     in_game = 0;
                 }
 
@@ -296,15 +300,23 @@ void start_game(int rows, int cols){
     in_game = 1;
 
     curr_move = TM_NONE;
-    tg = tg_create(rows, cols);
 
-    // create threads for accepting peer-to-peer connections
-    if(pthread_create(&accept_p2p_thread, NULL, accept_peer_connections, (void*) NULL) != 0){
-        curses_cleanup();
-        mrerror("Error while creating thread to accept incoming peer to peer connections messages");
+    int n_board_rows = rows;
+    if(gameSession.game_type == FAST_TRACK){
+        n_board_rows = rows - gameSession.n_baselines;
     }
 
-    service_peer_connections(NULL);
+    tg = tg_create(n_board_rows, cols, gameSession.seed);
+
+    if(gameSession.game_type != CHILL){
+        // create threads for accepting peer-to-peer connections
+        if(pthread_create(&accept_p2p_thread, NULL, accept_peer_connections, (void*) NULL) != 0){
+            curses_cleanup();
+            mrerror("Error while creating thread to accept incoming peer to peer connections messages");
+        }
+
+        service_peer_connections(NULL);
+    }
 
     if(pthread_create(&score_update_thread, NULL, score_update, (void*) NULL) != 0){
         curses_cleanup();
@@ -337,9 +349,11 @@ void game_cleanup(){
         pthread_mutex_unlock(&serverConnectionMutex);
     }
 
-    if(pthread_join(accept_p2p_thread, NULL) != 0){
-        curses_cleanup();
-        mrerror("Error while terminating game session.");
+    if(gameSession.game_type != CHILL){
+        if(pthread_join(accept_p2p_thread, NULL) != 0){
+            curses_cleanup();
+            mrerror("Error while terminating game session.");
+        }
     }
 
     //NCURSES reset to original state:
