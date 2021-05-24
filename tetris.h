@@ -129,8 +129,6 @@ typedef struct{
   int seed;
 } tetris_game;
 
-int rand = 0;
-
 /*
   This array stores all necessary information about the cells that are filled by
   each tetromino.  The first index is the type of the tetromino (i.e. shape,
