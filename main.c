@@ -173,7 +173,7 @@ int main(){
                 }
 
                 if(tg_game_over(tg)
-                   || (gameSession.game_type == FAST_TRACK && gameSession.total_lines_cleared == gameSession.n_baselines)
+                   || (gameSession.game_type == FAST_TRACK && gameSession.total_lines_cleared == gameSession.n_winlines)
                    || (gameSession.game_type == BOOMER && difftime(time(NULL), gameSession.start_time) >= (gameSession.time * 60))){
 
                     in_game = 0;
@@ -355,6 +355,8 @@ void game_cleanup(){
             mrerror("Error while terminating game session.");
         }
     }
+
+    reset_lcg();
 
     //NCURSES reset to original state:
     keypad(chat_box, FALSE);

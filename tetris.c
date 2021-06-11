@@ -153,6 +153,10 @@ static bool tg_fits(tetris_game *obj, tetris_block block)
  */
 long glob_lcg_rand = 0;
 
+void reset_lcg(){
+    glob_lcg_rand = 0;
+}
+
 static int random_tetromino(int seed) {
   long a = 1140671485;
   long c = 128201163;
