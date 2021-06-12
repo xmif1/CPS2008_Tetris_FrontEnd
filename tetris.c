@@ -151,14 +151,20 @@ static bool tg_fits(tetris_game *obj, tetris_block block)
   Return a random tetromino type.
   @xandru: changed to LCG
  */
+long glob_lcg_rand = 0;
+
+void reset_lcg(){
+    glob_lcg_rand = 0;
+}
+
 static int random_tetromino(int seed) {
-  a = 1140671485;
-  c = 128201163;
-  m = 2**24;
+  long a = 1140671485;
+  long c = 128201163;
+  long m = 16777216;
 
-  rand = (a*rand + c) % m;
+  glob_lcg_rand = (a*glob_lcg_rand + c) % m;
 
-  return rand % NUM_TETROMINOS;
+  return glob_lcg_rand % NUM_TETROMINOS;
 }
 
 /*
@@ -347,10 +353,10 @@ static void tg_shift_lines(tetris_game *obj, int r)
 void tg_add_lines(tetris_game *obj, int n)
 {
     if(n > 0){
-        tg_down(obj);
+	tg_remove(obj, obj->falling);
 
         int i, j;
-        for (i = 0; i < obj->rows - n; i++) {
+        for (i = 0; i <= obj->rows - n; i++) {
             for (j = 0; j < obj->cols; j++) {
                 if(i - n < 0){
                     tg_set(obj, i, j, TC_EMPTY);
@@ -361,6 +367,8 @@ void tg_add_lines(tetris_game *obj, int n)
                 }
             }
         }
+
+	tg_put(obj, obj->falling);
     }
 }
 

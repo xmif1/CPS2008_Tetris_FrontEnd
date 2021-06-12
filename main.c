@@ -187,10 +187,16 @@ int main(){
                 int lines_cleared = tg_tick(tg, curr_move); // tg_tick iterates the game play by one move and returns no. of lines cleared
                 gameSession.total_lines_cleared += lines_cleared;
 
+                // in case of rising tide: (state being shared between clients over the P2P network in this case)
+                if(gameSession.game_type == RISING_TIDE){
+                    tg_add_lines(tg, get_lines_to_add());
+                    send_cleared_lines(lines_cleared);
+                }
+
                 // check if game is over and change in_game flag accordingly; this depends on the game mode eg. if timed etc
                 if(tg_game_over(tg)
-                   || (gameSession.game_type == FAST_TRACK && gameSession.total_lines_cleared == gameSession.n_baselines)
-                   || difftime(time(NULL), gameSession.start_time) >= (gameSession.time * 60)){
+                   || (gameSession.game_type == FAST_TRACK && gameSession.total_lines_cleared == gameSession.n_winlines)
+                   || (gameSession.game_type == BOOMER && difftime(time(NULL), gameSession.start_time) >= (gameSession.time * 60))){
 
                     in_game = 0;
                 }
@@ -235,13 +241,7 @@ int main(){
                 // recall that the score field is being accessed periodically by the score update thread
                 set_score(tg->points);
 
-                // in case of rising tide: (state being shared between clients over the P2P network in this case)
-                if(gameSession.game_type == RISING_TIDE){
-                    tg_add_lines(tg, get_lines_to_add()); // shift the playing field by the number of lines cleared by the other players
-                    send_cleared_lines(lines_cleared); // send over the P2P the number of lines cleared during this move
-                }
-
-                if(!in_game){ // if game finished, cleanup
+                if(!in_game){
                     game_cleanup();
                     flushinp();
                 }
@@ -405,6 +405,8 @@ void game_cleanup(){
             mrerror("Error while terminating game session.");
         }
     }
+
+    reset_lcg();
 
     //NCURSES reset to original state:
     keypad(chat_box, FALSE);
