@@ -124,9 +124,6 @@ typedef struct{
     Number of lines until you advance to the next level.
    */
   int lines_remaining;
-
-  // @xandru: added seed recieved from server, for consistent tetromino generation between players
-  int seed;
 } tetris_game;
 
 /*
@@ -156,6 +153,6 @@ bool tg_check(tetris_game *obj, int row, int col);
 int tg_tick(tetris_game *obj, tetris_move move);
 void tg_add_lines(tetris_game *obj, int n); // @xandru: newly added
 bool tg_game_over(tetris_game *obj); // @xandru: made public
-void reset_lcg(); // @xandru: resets lcg between game sessions
+void set_lcg(int seed); // @xandru: set lcg seed to passed seed
 
 #endif // TETRIS_H

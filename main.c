@@ -90,7 +90,7 @@ int main(){
         chat_box = newwin(3, n_x_lines - 2, max_y - 4, 1);
         wtimeout(chat_box, 0);
 
-	    int offset_x = n_x_lines + 1;
+        int offset_x = n_x_lines + 1;
         int offset_y = 0;
 
         // ...and these are for the tetris gameplay portion of the screen...
@@ -100,15 +100,15 @@ int main(){
         score = newwin(6, 10, 14 + offset_y, 2 * (cols + 1 ) + 1 + offset_x);
 
         // draw basic borders
-	    wborder(live_chat_border, '|', '|', '-', '-', '+', '+', '|', '|');
-	    wborder(chat_box_border, '|', '|', '-', '-', '|', '|', '+', '+');
+        wborder(live_chat_border, '|', '|', '-', '-', '+', '+', '|', '|');
+        wborder(chat_box_border, '|', '|', '-', '-', '|', '|', '+', '+');
 
         // printing titles and border
         mvwprintw(live_chat, 0, 0, "Super Battle Tetris Chat Server\n\n");
 
         // updating
-	    wrefresh(live_chat_border);
-	    wrefresh(chat_box_border);
+        wrefresh(live_chat_border);
+        wrefresh(chat_box_border);
         wrefresh(live_chat);
         wrefresh(chat_box);
 
@@ -129,10 +129,13 @@ int main(){
 
         msg recv_server_msg;
         while(1){ // main loop: either fetches keyboard input for sending a message over chat, or for playing a tetris game
-            // pop off message from the queue of recieved message from the server
+            /* Note: we maintain a queue a messages so that the receive and decoding procedure can be handled by a
+             * separate thread, reducing the time between refreshes on the screen (especially during game play) by the
+             * main thread.
+             */
             recv_server_msg = dequeue_server_msg(); // dequeue_server_msg is a library function
 
-            if(recv_server_msg.msg_type == INVALID){ // if message was not recieved correctly, its tagged as INVALID
+            if(recv_server_msg.msg_type == INVALID){ // if message was not received correctly, its tagged as INVALID
                 break; // in which case we break from the main loop, initiating the exit sequence
             }
 
@@ -146,18 +149,18 @@ int main(){
                 case NEW_GAME: handle_new_game_msg(recv_server_msg); break;
                 // and similarly if the message is a START_GAME message
                 case START_GAME: {
-		            start_game(rows, cols); // call the start_game convience function to setup a new game session on the frontend
+                    start_game(rows, cols); // call the start_game convience function to setup a new game session on the frontend
 
-		            msg_to_send_idx = 0;
+                    msg_to_send_idx = 0;
                     to_send.msg = realloc(to_send.msg, 1);
                     if(to_send.msg == NULL){
                         mrerror("Error while allocating memory");
                     }
-		        } break; // otherwise queue was empty and hence message was tagged EMPTY
+                } break; // otherwise queue was empty and hence message was tagged EMPTY
             }
 
             if(!in_game){ // if player is not in game, keyboard input is bound to the live chat box
-		        int ret = msg_to_send_idx;
+                int ret = msg_to_send_idx;
                 // allocate 512 bytes for message; remove limitation? longer inputs are causing ncurses to misbehave
                 to_send.msg = realloc(to_send.msg, 512);
                 if(to_send.msg == NULL){
@@ -180,7 +183,7 @@ int main(){
                     if(to_send.msg == NULL){
                         mrerror("Error while allocating memory");
                     }
-		        }
+                }
             }else{ // otherwise the input is bound to the tetris instance currently running, using the input to update
                    // the state of the game and any online oppononets.
 
@@ -248,7 +251,7 @@ int main(){
             }
         }
 
-	    curses_cleanup(); // on termination of main loop, clean up ncurses to restore terminal session to original state
+        curses_cleanup(); // on termination of main loop, clean up ncurses to restore terminal session to original state
 
         if(server_err){
             smrerror("Server disconnected abruptly.");
@@ -272,11 +275,20 @@ int main(){
     return 0;
 }
 
-// Simple threaded function that repeatedly calls the library provided enqueue_server_msg function, to fetch messages from the server
+/* Simple threaded function that repeatedly calls the library provided enqueue_server_msg function, to fetch messages
+ * from the server.
+ *
+ * Note: we maintain a queue a messages so that the receive and decoding procedure can be handled by a
+ * separate thread, reducing the time between refreshes on the screen (especially during game play) by the
+ * main thread.
+ */
 void* get_server_msgs(void* arg){
     msg recv_server_msg;
 
     while(1){
+        // Note that enqueue_server_msg has a time-out select call, hence the call is non--blocking.
+        // If data is not available after time-out but the server is still connected, a msg of type EMPTY is returned.
+        // If the server disconnects then after the the time out, the function return a msg of type INVALID.
         recv_server_msg = enqueue_server_msg(server_fd);
 
         if(recv_server_msg.msg_type == INVALID){
@@ -405,8 +417,6 @@ void game_cleanup(){
             mrerror("Error while terminating game session.");
         }
     }
-
-    reset_lcg();
 
     //NCURSES reset to original state:
     keypad(chat_box, FALSE);
