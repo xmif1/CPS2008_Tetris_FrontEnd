@@ -60,8 +60,12 @@ int get_chat_box_char(msg to_send, int i);
  * if there are not enough resources available. This is because ncurses typically needs a few milliseconds to update the
  * entire screen etc, in an ideal situation.
  */
-int main(){
-    client_init();
+int main(int argc, char* argv[]){
+    if(argc < 2){
+        mrerror("IPv4 address of server not specified. Exiting...");
+    }
+
+    client_init(argv[1]);
 
     if(server_fd >= 0){
         pthread_mutex_lock(&serverConnectionMutex);
