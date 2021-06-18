@@ -311,7 +311,7 @@ void* get_server_msgs(void* arg){
 int get_chat_box_char(msg to_send, int i){ // i = index of where to add character in the data part
     int c = mvwgetch(chat_box, 0, i);
 
-    if(c == ERR)
+    if(c == ERR){
         return -2; // signal error
     }
     else if(c == '\n' || c == EOF || c == '\r'){
