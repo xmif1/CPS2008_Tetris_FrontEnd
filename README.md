@@ -36,3 +36,8 @@ Clone the repository, and ```cd``` into the project directory. Then run:
 
 1. ```cmake .```
 2. ```make```
+
+## Execution Instructions
+
+Simply ```cd``` into the directory containing the compiled executable, and run ```./CPS2008_Tetris_FrontEnd <server_ip>```,
+where ```server_ip``` is a required argument specifying the IPv4 address in dot notation of the server.
